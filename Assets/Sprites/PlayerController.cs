@@ -25,16 +25,18 @@ public class PlayerMovement : MonoBehaviour
     {
         // 1. 실제 이동 처리
         rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, rb.linearVelocity.y);
-        
+
         // 2. 방향에 따라 캐릭터 뒤집기
+        Vector3 scale = transform.localScale;
         if (moveInput.x > 0)
         {
-            transform.localScale = new Vector3(1, 1, 1);
+            scale.x = Mathf.Abs(scale.x); // 양수로
         }
         else if (moveInput.x < 0)
         {
-            transform.localScale = new Vector3(-1, 1, 1);
+            scale.x = -Mathf.Abs(scale.x); // 음수로
         }
+        transform.localScale = scale;
 
         // 3. 애니메이터의 isMoving 파라미터 값 변경
         // moveInput.x가 0이 아니면(움직이면) true, 0이면(멈추면) false
