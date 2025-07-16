@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     public float moveSpeed = 5f;
-    public float jumpForce = 4f;
+    public float jumpForce = 12f;
     private Animator animator;
     private Rigidbody2D rb;
 
@@ -51,17 +51,26 @@ public class PlayerMovement : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+        foreach (ContactPoint2D contact in collision.contacts)
         {
-            isGrounded = true;
+            // contact.normal.y가 0.5 이상이면 바닥
+            if (contact.normal.y > 0.5f && collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+            {
+                isGrounded = true;
+                break;
+            }
         }
     }
 
     private void OnCollisionStay2D(Collision2D collision)
     {
-        if (collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+        foreach (ContactPoint2D contact in collision.contacts)
         {
-            isGrounded = true;
+            if (contact.normal.y > 0.5f && collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+            {
+                isGrounded = true;
+                break;
+            }
         }
     }
 
