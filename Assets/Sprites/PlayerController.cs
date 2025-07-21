@@ -218,7 +218,7 @@ public class PlayerMovement : MonoBehaviour
     
     void Awake()
     {
-        if (FindObjectsOfType<PlayerMovement>().Length > 1)
+        if (Object.FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None).Length > 1)
         {
             Destroy(gameObject);
             return;
