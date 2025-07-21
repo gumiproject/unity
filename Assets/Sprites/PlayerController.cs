@@ -40,7 +40,7 @@ public class PlayerMovement : MonoBehaviour
     private bool isFacingRight = true;
     private float lastInputTime = 0f;
     private int lastDirection = 0;
-    
+
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -66,7 +66,7 @@ public class PlayerMovement : MonoBehaviour
         if (isDashing) return;
         HandleMovement();
     }
-    
+
     // --- 핵심 로직 함수들 ---
 
     private void HandleCrouchState()
@@ -104,21 +104,21 @@ public class PlayerMovement : MonoBehaviour
         animator.SetBool("isRunning", isRunning);
         animator.SetBool("isCrouching", isCrouching);
     }
-    
+
     private void HandleMovement()
     {
         float currentSpeed = moveSpeed;
         if (isRunning && !isCrouching) currentSpeed = runSpeed;
         if (isCrouching) currentSpeed = crouchSpeed;
-        
+
         rb.linearVelocity = new Vector2(moveInput.x * currentSpeed, rb.linearVelocity.y);
     }
-    
+
     private bool CanStandUp()
     {
         return !Physics2D.OverlapBox(ceilingCheck.position, ceilingCheckSize, 0f, groundLayer);
     }
-    
+
     // --- 기존 Input System 이벤트 함수들 (최소한으로 수정) ---
 
     public void OnMove(InputValue value)
@@ -143,7 +143,7 @@ public class PlayerMovement : MonoBehaviour
         {
             isRunning = false;
         }
-        
+
         moveInput = input;
     }
 
@@ -164,7 +164,7 @@ public class PlayerMovement : MonoBehaviour
             StartCoroutine(Dash());
         }
     }
-    
+
     private IEnumerator Dash()
     {
         canDash = false;
@@ -215,4 +215,21 @@ public class PlayerMovement : MonoBehaviour
             isGrounded = false;
         }
     } 
+    
+    void Awake()
+    {
+        if (FindObjectsOfType<PlayerMovement>().Length > 1)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        DontDestroyOnLoad(gameObject);
+
+        // PlayerInput 디바이스 재연결
+        var input = GetComponent<PlayerInput>();
+        if (input != null)
+        {
+           input.SwitchCurrentControlScheme("Keyboard&Mouse", Keyboard.current, Mouse.current);
+        }
+    }
 }
