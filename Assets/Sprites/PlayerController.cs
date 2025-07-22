@@ -43,10 +43,7 @@ public class PlayerMovement : MonoBehaviour
     private float lastInputTime = 0f;
     private int lastDirection = 0;
 
-<<<<<<< HEAD
-=======
 
->>>>>>> jiwan
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -224,20 +221,13 @@ public class PlayerMovement : MonoBehaviour
     
     void Awake()
     {
-<<<<<<< HEAD
-=======
         instance = this.gameObject;
 
->>>>>>> jiwan
         if (Object.FindObjectsByType<PlayerMovement>(FindObjectsSortMode.None).Length > 1)
         {
             Destroy(gameObject);
             return;
-<<<<<<< HEAD
-        }
-=======
         }   
->>>>>>> jiwan
         DontDestroyOnLoad(gameObject);
 
         // PlayerInput 디바이스 재연결
