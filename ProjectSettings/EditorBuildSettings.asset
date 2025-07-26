@@ -8,21 +8,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/SampleScene.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/semple_post.unity
     guid: 49edbd3c0c279ea47a755d6f0d839567
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/semple_future.unity
     guid: e6595a56ee8346541ab051a87918b039
-  - enabled: 1
-    path: Assets/Scenes/kim_post.unity
-    guid: 792de917c2ee35e4699dc3711ab10f5a
-  - enabled: 1
-    path: Assets/Scenes/kim_future.unity
-    guid: 7479a7e87ffccee4cbb45d7759a67e14
-  - enabled: 1
-    path: Assets/Scenes/kim_succes1.unity
-    guid: c3634c4023c85044281e193a69b7c5d7
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

@@ -13,7 +13,7 @@ TagManager:
   - UI
   - Ground
   - Wall
-  - Player
+  - Enemy
   - 
   - 
   - 
@@ -42,13 +42,13 @@ TagManager:
     uniqueID: 0
     locked: 0
   - name: Sky
-    uniqueID: 2668319835
+    uniqueID: 1930477755
     locked: 0
-  - name: Ground
-    uniqueID: 2616912503
+  - name: 'Ground '
+    uniqueID: 3105506645
     locked: 0
-  - name: Player
-    uniqueID: 211624615
+  - name: player
+    uniqueID: 2718361969
     locked: 0
   m_RenderingLayers:
   - Default
