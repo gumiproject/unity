@@ -3,10 +3,14 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
 
-// MonoBehaviour 옆에 , IDamageable 을 추가합니다.
 public class PlayerController : MonoBehaviour, IDamageable
 {
     public static GameObject instance;
+
+    [Header("사운드")]
+    public AudioClip deathSound; // 사망 시 재생할 오디오 클립
+    public AudioClip jumpSound; // 점프 시 재생할 오디오 클립
+
 
     [Header("상태")]
     public int maxHealth = 3;
@@ -35,10 +39,12 @@ public class PlayerController : MonoBehaviour, IDamageable
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
+    private PlayerInput playerInput;
     private Vector2 moveInput;
     private Vector2 originalScale;
 
     // --- 상태 변수 ---
+    private bool isDead = false;
     private bool isGrounded = true;
     private bool isRunning = false;
     private float doubleTapThreshold = 0.3f;
@@ -65,13 +71,14 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        playerInput = GetComponent<PlayerInput>();
         originalScale = transform.localScale;
         currentHealth = maxHealth;
     }
 
     void Update()
     {
-        if (isDashing || isInvincible) return;
+        if (isDead || isDashing || isInvincible) return;
 
         HandleCrouchState();
         HandleFacingDirection();
@@ -80,13 +87,13 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     void FixedUpdate()
     {
-        if (isDashing) return;
+        if (isDead || isDashing) return;
         HandleMovement();
     }
 
     public void TakeDamage(Vector2 knockbackDirection)
     {
-        if (isInvincible) return;
+        if (isInvincible || isDead) return;
 
         currentHealth--;
         Debug.Log("플레이어 체력: " + currentHealth);
@@ -101,12 +108,63 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
     }
 
+    public void Die()
+    {
+        if (isDead) return;
+
+        isDead = true;
+        Debug.Log("플레이어 사망!");
+        
+    // [추가] 사망 사운드가 지정되어 있다면, 현재 위치에서 재생합니다.
+    if (deathSound != null)
+    {
+        AudioSource.PlayClipAtPoint(deathSound, transform.position);
+    }
+
+    StartCoroutine(DieSequence());
+    }
+
+   private IEnumerator DieSequence()
+{
+ // 1. 모든 물리적 움직임과 입력을 중단합니다.
+ playerInput.enabled = false;
+ rb.linearVelocity = Vector2.zero;
+ rb.isKinematic = false; // 물리 효과 활성화
+
+ // 2. 위로 솟아오르는 힘을 한 번 줍니다.
+ rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse);
+
+ // 3. 잠시 기다립니다. (얼마나 올라갈지 조절)
+ yield return new WaitForSeconds(0.3f); // 이 시간을 조절해서 올라가는 높이를 변경하세요.
+
+ // 4. Y축 속도를 반전시켜 아래로 떨어지게 만듭니다.
+ rb.linearVelocity = new Vector2(rb.linearVelocity.x, -rb.linearVelocity.y * 0.5f); // * 0.5f는 감속 효과
+
+ // 5. 회전 (180도) - 스프라이트의 방향을 뒤집습니다.
+ isFacingRight = !isFacingRight;
+ ApplyVisuals();
+
+ // 6. 콜라이더를 비활성화하여 다른 오브젝트와 충돌하지 않도록 합니다.
+ GetComponent<Collider2D>().enabled = false;
+
+ // 7. 게임 매니저에게 씬 재시작을 1.5초 후에 하라고 명령을 보냅니다.
+ GameManager.instance.RestartSceneWithDelay(0.7f);
+
+ // 8. 플레이어 오브젝트를 1.5초 후에 파괴하도록 예약합니다.
+ Destroy(gameObject, 0.5f);
+
+ yield return null; // 코루틴 종료
+}
+
+
     private IEnumerator InvincibilityCoroutine(Vector2 knockbackDirection)
     {
         isInvincible = true;
-        
-        rb.linearVelocity = Vector2.zero;
-        rb.AddForce(knockbackDirection * knockbackForce, ForceMode2D.Impulse);
+        if (knockbackDirection.magnitude > 0)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.AddForce(knockbackDirection * knockbackForce, ForceMode2D.Impulse);
+        }
 
         float endTime = Time.time + invincibilityDuration;
         while (Time.time < endTime)
@@ -116,34 +174,27 @@ public class PlayerController : MonoBehaviour, IDamageable
             spriteRenderer.enabled = true;
             yield return new WaitForSeconds(0.1f);
         }
-        
         isInvincible = false;
     }
-
-    private void Die()
-    {
-        Debug.Log("플레이어 사망!");
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    }
-
+    
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (isDead) return;
+
         foreach (ContactPoint2D contact in collision.contacts)
         {
-            if (contact.normal.y > 0.5f && collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+            if (contact.normal.y > 0.5f && ((1 << collision.gameObject.layer) & groundLayer) != 0)
             {
                 isGrounded = true; 
                 break;
             }
         }
-
         if (collision.gameObject.CompareTag("Enemy"))
         {
             foreach (ContactPoint2D contact in collision.contacts)
             {
                 if (contact.normal.y < -0.5f)
                 {
-                    Debug.Log("몬스터를 밟았다!");
                     Destroy(collision.gameObject);
                     rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce * 0.7f);
                     return;
@@ -154,7 +205,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     private void OnCollisionExit2D(Collision2D collision)
     {
-        if (collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+        if (((1 << collision.gameObject.layer) & groundLayer) != 0)
         {
             isGrounded = false;
         }
@@ -162,7 +213,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     private void HandleCrouchState()
     {
-        bool wantsToCrouch = GetComponent<PlayerInput>().actions["Crouch"].IsPressed();
+        bool wantsToCrouch = playerInput.actions["Crouch"].IsPressed();
         if (wantsToCrouch && isGrounded)
         {
             isCrouching = true;
@@ -208,6 +259,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     public void OnMove(InputValue value)
     {
+        if (isDead) { moveInput = Vector2.zero; return; }
         Vector2 input = value.Get<Vector2>();
         if (isCrouching || isDashing || isInvincible)
         {
@@ -232,8 +284,13 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     public void OnJump(InputValue value)
     {
+        if (isDead) return;
         if (value.isPressed && isGrounded && !isDashing && !isCrouching)
         {
+                if (jumpSound != null)
+    {
+        AudioSource.PlayClipAtPoint(jumpSound, transform.position);
+    }
             rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
             isGrounded = false;
             animator.SetTrigger("jump");
@@ -242,6 +299,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     public void OnDash(InputValue value)
     {
+        if (isDead) return;
         if (value.isPressed && canDash && !isCrouching)
         {
             StartCoroutine(Dash());

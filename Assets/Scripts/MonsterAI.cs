@@ -6,13 +6,13 @@ public class MonsterAI : MonoBehaviour
     public float moveSpeed = 2f;
 
     [Header("감지 설정")]
-    public Transform groundCheck;
-    public LayerMask groundLayer;
-    public float groundCheckDistance = 0.6f;
+    public Transform groundCheck; // 땅을 감지할 센서의 위치
+    public LayerMask groundLayer; // 땅으로 인식할 레이어
+    public float groundCheckDistance = 0.6f; // 센서의 감지 거리
 
     // --- Private 변수 ---
     private Rigidbody2D rb;
-    private int moveDirection = -1;
+    private int moveDirection = -1; // 1은 오른쪽, -1은 왼쪽
 
     void Start()
     {
@@ -42,40 +42,35 @@ public class MonsterAI : MonoBehaviour
     // 방향을 바꾸는 함수
     private void Flip()
     {
+        // 이동 방향을 반대로 바꿉니다.
         moveDirection *= -1;
+        // 몬스터의 좌우를 뒤집습니다.
         transform.localScale = new Vector3(transform.localScale.x * -1, transform.localScale.y, transform.localScale.z);
     }
 
-    // 플레이어와 충돌 시 데미지를 주는 함수
-    private void OnCollisionEnter2D(Collision2D collision)
-    {
-        if (collision.gameObject.CompareTag("Player"))
-        {
-            // 부딪힌 오브젝트가 데미지를 받을 수 있는지 (IDamageable) 확인
-            IDamageable damageableObject = collision.gameObject.GetComponent<IDamageable>();
-            if (damageableObject != null)
-            {
-                // 넉백 방향 계산
-                Vector2 knockbackDirection = (collision.transform.position - transform.position).normalized;
-                knockbackDirection.y = Mathf.Max(knockbackDirection.y, 0.5f);
-                
-                // 플레이어의 TakeDamage 함수 호출
-                damageableObject.TakeDamage(knockbackDirection);
-            }
-        }
-    }
-
-    // 디버깅을 위해 센서 위치와 감지 거리를 씬 뷰에 표시
+    // 디버깅을 위해 센서 위치와 감지 거리를 씬 뷰에 표시합니다.
     private void OnDrawGizmosSelected()
     {
         if (groundCheck != null)
         {
             Gizmos.color = Color.red;
+            // 땅 감지 센서 위치에서 아래로 선을 그립니다.
             Gizmos.DrawLine(groundCheck.position, (Vector2)groundCheck.position + Vector2.down * groundCheckDistance);
             
             Gizmos.color = Color.blue;
+            // 벽 감지 센서 위치에서 앞으로 선을 그립니다.
             Vector2 wallCheckPos = (Vector2)transform.position + new Vector2(moveDirection * 0.5f, 0);
             Gizmos.DrawLine(wallCheckPos, wallCheckPos + new Vector2(moveDirection, 0) * 0.1f);
+        }
+    }
+
+    // OnCollisionEnter2D는 이제 플레이어와의 충돌만 처리하도록 단순화할 수 있습니다.
+    private void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            Debug.Log("플레이어 공격!");
+            // 여기에 플레이어 체력을 깎는 코드를 넣습니다.
         }
     }
 }
