@@ -10,6 +10,6 @@ public class StartScript : MonoBehaviour
 
     public void StartNextScene()
     {
-        SceneManager.LoadScene("semple_post"); // 실제 다음 씬 이름으로 변경하세요.
+        SceneManager.LoadScene("1-1_post"); // 실제 다음 씬 이름으로 변경하세요.
     }
 }

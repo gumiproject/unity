@@ -10,7 +10,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     [Header("사운드")]
     public AudioClip deathSound;
     public AudioClip jumpSound;
-
+    public AudioClip fireSound;
 
     [Header("상태")]
     public int maxHealth = 3;
@@ -31,12 +31,15 @@ public class PlayerController : MonoBehaviour, IDamageable
     public float crouchSpeed = 2.5f;
     public Transform ceilingCheck;
     public Vector2 ceilingCheckSize = new Vector2(0.8f, 0.1f);
+
+    [Header("충돌 확인")]
+    public Transform groundCheck;
+    public Vector2 groundCheckSize = new Vector2(0.8f, 0.1f);
     public LayerMask groundLayer;
 
     [Header("공격 설정")]
     public GameObject fireballPrefab;
     public Transform firePoint;
-
     public float fireCooldown = 0.1f;
 
     // --- Private 변수 ---
@@ -56,7 +59,6 @@ public class PlayerController : MonoBehaviour, IDamageable
     private bool isRunning = false;
     private float doubleTapThreshold = 0.3f;
     private bool isDashing = false;
-
     private bool canFire = true;
     private bool canDash = true;
     private bool isCrouching = false;
@@ -88,7 +90,10 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     void Update()
     {
+        isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
+
         if (isDead || isDashing || isInvincible) return;
+
         HandleCrouchState();
         HandleFacingDirection();
         ApplyVisuals();
@@ -150,14 +155,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDead) return;
-        foreach (ContactPoint2D contact in collision.contacts)
-        {
-            if (contact.normal.y > 0.5f && ((1 << collision.gameObject.layer) & groundLayer) != 0)
-            {
-                isGrounded = true; 
-                break;
-            }
-        }
+
         if (collision.gameObject.CompareTag("Enemy"))
         {
             foreach (ContactPoint2D contact in collision.contacts)
@@ -169,14 +167,6 @@ public class PlayerController : MonoBehaviour, IDamageable
                     return;
                 }
             }
-        }
-    }
-
-    private void OnCollisionExit2D(Collision2D collision)
-    {
-        if (((1 << collision.gameObject.layer) & groundLayer) != 0)
-        {
-            isGrounded = false;
         }
     }
 
@@ -251,40 +241,33 @@ public class PlayerController : MonoBehaviour, IDamageable
         if (value.isPressed && canDash && !isCrouching) StartCoroutine(Dash());
     }
     
- public void OnFire(InputValue value)
-{
-    // 쿨타임 중이거나, 다른 행동 중이거나, 버튼을 누른 순간이 아니면 발사 불가
-    if (!canFire || isDead || isCrouching || isDashing || !value.isPressed)
+    public void OnFire(InputValue value)
     {
-        return;
+        if (!canFire || isDead || isCrouching || isDashing || !value.isPressed)
+        {
+            return;
+        }
+        canFire = false;
+
+        if (fireSound != null)
+        {
+            audioSource.PlayOneShot(fireSound);
+        }
+        
+        GameObject fireballObject = Instantiate(fireballPrefab, firePoint.position, Quaternion.identity);
+        Fireball fireball = fireballObject.GetComponent<Fireball>();
+        if (fireball != null)
+        {
+            fireball.Launch(isFacingRight);
+        }
+        StartCoroutine(FireCooldownCoroutine());
     }
 
-    // 1. 즉시 발사 불가능 상태로 변경 (쿨타임 시작)
-    canFire = false;
-
-    // 2. 사운드 재생
-
-    // 3. 파이어볼 생성 및 발사
-    GameObject fireballObject = Instantiate(fireballPrefab, firePoint.position, Quaternion.identity);
-    Fireball fireball = fireballObject.GetComponent<Fireball>();
-    if (fireball != null)
+    private IEnumerator FireCooldownCoroutine()
     {
-        fireball.Launch(isFacingRight);
+        yield return new WaitForSeconds(fireCooldown);
+        canFire = true;
     }
-    
-    // 4. 정해진 시간 후에 다시 발사 가능 상태로 만드는 코루틴 시작
-    StartCoroutine(FireCooldownCoroutine());
-}
-
-// [추가] 파이어볼 쿨타임을 처리하는 코루틴
-private IEnumerator FireCooldownCoroutine()
-{
-    // fireCooldown 변수에 설정된 시간(0.1초)만큼 기다림
-    yield return new WaitForSeconds(fireCooldown);
-    
-    // 다시 발사 가능한 상태로 변경
-    canFire = true;
-}
 
     private IEnumerator Dash()
     {
@@ -301,5 +284,19 @@ private IEnumerator FireCooldownCoroutine()
         animator.SetBool("isDashing", false);
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (groundCheck != null)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireCube(groundCheck.position, groundCheckSize);
+        }
+        if (ceilingCheck != null)
+        {
+            Gizmos.color = CanStandUp() ? Color.red : Color.green;
+            Gizmos.DrawWireCube(ceilingCheck.position, ceilingCheckSize);
+        }
     }
 }
