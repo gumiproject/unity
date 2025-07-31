@@ -52,6 +52,8 @@ public class PlayerController : MonoBehaviour, IDamageable
     private Vector2 originalScale;
 
     // --- 상태 변수 ---
+
+     private bool canDoubleJump = false;
     private int currentHealth;
     private bool isInvincible = false;
     private bool isDead = false;
@@ -89,15 +91,16 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     void Update()
-    {
-        isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
+{
+    isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
+        
 
         if (isDead || isDashing || isInvincible) return;
 
         HandleCrouchState();
         HandleFacingDirection();
         ApplyVisuals();
-    }
+}
 
     void FixedUpdate()
     {
@@ -225,12 +228,24 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     public void OnJump(InputValue value)
     {
-        if (isDead) return;
-        if (value.isPressed && isGrounded && !isDashing && !isCrouching)
+        if (isDead || !value.isPressed) return;
+
+        // 1. 땅에 있을 때 점프 (항상 가능)
+        if (isGrounded && !isDashing && !isCrouching)
         {
             if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
-            isGrounded = false;
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            animator.SetTrigger("jump");
+        }
+        // 2. [수정] 공중이고, 2단 점프가 가능할 때 (canDoubleJump == true)
+        else if (!isGrounded && canDoubleJump && !isDashing && !isCrouching)
+        {
+            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            
+            // [수정] 사용 즉시 2단 점프 권한을 false로 변경하여 1회용으로 만듭니다.
+            canDoubleJump = false;
+            
             animator.SetTrigger("jump");
         }
     }
@@ -240,7 +255,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         if (isDead) return;
         if (value.isPressed && canDash && !isCrouching) StartCoroutine(Dash());
     }
-    
+
     public void OnFire(InputValue value)
     {
         if (!canFire || isDead || isCrouching || isDashing || !value.isPressed)
@@ -253,7 +268,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         {
             audioSource.PlayOneShot(fireSound);
         }
-        
+
         GameObject fireballObject = Instantiate(fireballPrefab, firePoint.position, Quaternion.identity);
         Fireball fireball = fireballObject.GetComponent<Fireball>();
         if (fireball != null)
@@ -299,4 +314,12 @@ public class PlayerController : MonoBehaviour, IDamageable
             Gizmos.DrawWireCube(ceilingCheck.position, ceilingCheckSize);
         }
     }
+
+    public void ActivateDoubleJump()
+    {
+        Debug.Log("2단 점프 1회 가능!");
+        // [수정] 2단 점프를 가능하게만 설정합니다.
+        canDoubleJump = true;
+    }
+
 }
