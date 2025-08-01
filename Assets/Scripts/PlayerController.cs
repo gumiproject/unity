@@ -50,7 +50,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public float swimSpeed = 3f;
     public float swimJumpForce = 8f;
     public float maxSwimTime = 5f;
-    public LayerMask waterLayer; // [추가] 물 레이어를 직접 지정
+    public LayerMask waterLayer;
     #endregion
 
     #region Private 변수
@@ -203,14 +203,14 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
     #endregion
     
-    #region 핵심 로직 함수들 (Movement, Visuals, etc.)
+    #region 핵심 로직 함수들
     private void HandleClimbingAndSwimmingState()
 {
     bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
     bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
     
     // 수영 상태 결정
-    if (isTouchingWater && !isSwimming)
+    if (isTouchingWater &&!isSwimming)
     {
         isSwimming = true;
         isClimbing = false;
@@ -232,10 +232,21 @@ public class PlayerController : MonoBehaviour, IDamageable
         isClimbing = false;
     }
     
+    // [수정된 핵심 로직]
+    // 대쉬 상태를 최우선으로 확인하여, 대쉬 중에는 이 함수가 물리 상태를 변경하지 못하도록 합니다.
+    if (isDashing)
+    {
+        // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
+        // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
+        // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
+        return; 
+    }
+    
     // 상태에 따른 물리 효과 적용
     if (isClimbing)
     {
         rb.gravityScale = 0f;
+        rb.linearDamping = 0f; // 일관성을 위해 사다리에서도 Damping 초기화
     }
     else if (isSwimming)
     {
@@ -247,11 +258,11 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
     else
     {
+        // 기본 상태: 등반, 수영, 대쉬가 아닐 때만 실행됩니다.
         rb.gravityScale = originalGravityScale;
         rb.linearDamping = 0f;
     }
 
-    // [수정] 사다리를 탈 때만 땅을 무시하도록 변경
     Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
 }
     
@@ -263,19 +274,26 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     private void HandleFacingDirection()
-{
-    // 사다리를 탈 때만 방향 전환을 막고, 수영 중에는 허용합니다.
-    if (isClimbing) return;
+    {
+        if (isClimbing) return;
+        if (moveInput.x > 0 && !isFacingRight) Flip();
+        else if (moveInput.x < 0 && isFacingRight) Flip();
+    }
 
-    if (moveInput.x > 0) isFacingRight = true;
-    else if (moveInput.x < 0) isFacingRight = false;
-}
+    private void Flip()
+    {
+        isFacingRight = !isFacingRight;
+        Vector3 newScale = transform.localScale;
+        newScale.x *= -1;
+        transform.localScale = newScale;
+    }
 
     private void ApplyVisuals()
     {
         float targetYScale = isCrouching ? originalScale.y * 0.5f : originalScale.y;
-        float targetXScale = isFacingRight ? originalScale.x : -originalScale.x;
-        transform.localScale = new Vector3(targetXScale, targetYScale, transform.localScale.z);
+        // Flip()이 x스케일을 관리하므로, 여기서는 y스케일만 적용
+        transform.localScale = new Vector3(transform.localScale.x, targetYScale, transform.localScale.z);
+        
         animator.SetBool("isMoving", moveInput.x != 0);
         animator.SetBool("isRunning", isRunning);
         animator.SetBool("isCrouching", isCrouching);
@@ -322,15 +340,24 @@ public class PlayerController : MonoBehaviour, IDamageable
             return;
         }
         
-        if (isCrouching || isDashing || isInvincible) isRunning = false;
+        if (isCrouching || isDashing || isInvincible) 
+        {
+            isRunning = false;
+        }
         else if (input.x != 0)
         {
             int currentDirection = input.x > 0 ? 1 : -1;
-            if (currentDirection == lastDirection && Time.time - lastInputTime < doubleTapThreshold) isRunning = true;
+            if (currentDirection == lastDirection && Time.time - lastInputTime < doubleTapThreshold)
+            {
+                isRunning = true;
+            }
             lastInputTime = Time.time;
             lastDirection = currentDirection;
         }
-        else isRunning = false;
+        else 
+        {
+            isRunning = false;
+        }
         moveInput = input;
     }
 
@@ -338,12 +365,11 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         if (isDead || !value.isPressed) return;
         
-         if (isSwimming)
-    {
-        // [수정] Y축 속도만 직접 변경하여 점프 힘이 덮어쓰이지 않게 함
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
-        return;
-    }
+        if (isSwimming)
+        {
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
+            return;
+        }
 
         if (isClimbing)
         {
@@ -409,20 +435,29 @@ public class PlayerController : MonoBehaviour, IDamageable
         canFire = true;
     }
 
+    // [핵심 수정] 대쉬 코루틴을 원본과 동일하게 복원
     private IEnumerator Dash()
     {
         canDash = false;
         isDashing = true;
-        isClimbing = false;
         isRunning = false;
+        animator.SetBool("isRunning", false);
         animator.SetBool("isDashing", true);
+
+        // 현재 중력 값을 저장하고, 대쉬 중에는 0으로 설정
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
-        rb.linearVelocity = new Vector2((isFacingRight ? 1 : -1) * dashPower, 0f);
+        
+        // 현재 플레이어의 X 스케일(방향)을 사용하여 대쉬 속도를 계산
+        rb.linearVelocity = new Vector2(transform.localScale.x * dashPower, 0f);
+
         yield return new WaitForSeconds(dashingTime);
+
+        // 대쉬가 끝나면 원래 중력 값으로 복구
         rb.gravityScale = originalGravity;
         isDashing = false;
         animator.SetBool("isDashing", false);
+
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
     }
