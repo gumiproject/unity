@@ -104,11 +104,11 @@ public class PlayerController : MonoBehaviour, IDamageable
             instance = this.gameObject;
             DontDestroyOnLoad(gameObject);
         }
-        else if (instance != this.gameObject)
+         else if (instance != this.gameObject)
         {
             Destroy(gameObject);
             return;
-        }
+        } 
 
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
@@ -171,7 +171,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb.bodyType = RigidbodyType2D.Dynamic;
         rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse);
         yield return new WaitForSeconds(1.5f);
-        // GameManager.instance.RestartSceneWithDelay(0f); // GameManager가 있다면 사용
+        GameManager.instance.RestartSceneWithDelay(0f); // GameManager가 있다면 사용
         Destroy(gameObject);
     }
 
@@ -252,48 +252,66 @@ public class PlayerController : MonoBehaviour, IDamageable
     #region 핵심 로직 함수들 (Movement, Visuals, etc.)
     // ... Handle...(), ApplyVisuals(), CanStandUp() 등 모든 기존 함수들은 그대로 둡니다 ...
     private void HandleClimbingAndSwimmingState()
+{
+    bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
+    bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
+
+    // 수영 상태 결정
+    if (isTouchingWater &&!isSwimming)
     {
-        bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
-        bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
-        
-        if (isTouchingWater && !isSwimming)
-        {
-            isSwimming = true; isClimbing = false;
-        }
-        else if (!isTouchingWater && isSwimming)
-        {
-            isSwimming = false; swimTimeRemaining = maxSwimTime;
-        }
-        
-        if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
-        {
-            isClimbing = true;
-        }
-        
-        if (!isTouchingClimbable && isClimbing)
-        {
-            isClimbing = false;
-        }
-        
-        if (isClimbing)
-        {
-            rb.gravityScale = 0f;
-        }
-        else if (isSwimming)
-        {
-            rb.gravityScale = originalGravityScale * 0.4f;
-            rb.linearDamping = 3f;
-            swimTimeRemaining -= Time.deltaTime;
-            if (swimTimeRemaining <= 0) Die();
-        }
-        else
-        {
-            rb.gravityScale = originalGravityScale;
-            rb.linearDamping = 0f;
-        }
-        
-        Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
+        isSwimming = true;
+        isClimbing = false;
     }
+    else if (!isTouchingWater && isSwimming)
+    {
+        isSwimming = false;
+        swimTimeRemaining = maxSwimTime;
+    }
+
+    // 사다리 타기 상태 결정
+    if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
+    {
+        isClimbing = true;
+    }
+
+    if (!isTouchingClimbable && isClimbing)
+    {
+        isClimbing = false;
+    }
+
+    // [수정된 핵심 로직]
+    // 대쉬 상태를 최우선으로 확인하여, 대쉬 중에는 이 함수가 물리 상태를 변경하지 못하도록 합니다.
+    if (isDashing)
+    {
+        // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
+        // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
+        // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
+        return; 
+    }
+
+    // 상태에 따른 물리 효과 적용
+    if (isClimbing)
+    {
+        rb.gravityScale = 0f;
+        rb.linearDamping = 0f; // 일관성을 위해 사다리에서도 Damping 초기화
+    }
+    else if (isSwimming)
+    {
+        rb.gravityScale = originalGravityScale * 0.4f;
+        rb.linearDamping = 3f;
+
+        swimTimeRemaining -= Time.deltaTime;
+        if (swimTimeRemaining <= 0) Die();
+    }
+    else
+    {
+        // 기본 상태: 등반, 수영, 대쉬가 아닐 때만 실행됩니다.
+        rb.gravityScale = originalGravityScale;
+        rb.linearDamping = 0f;
+    }
+
+    Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
+}
     private void HandleCrouchState()
     {
         bool wantsToCrouch = playerInput.actions["Crouch"].IsPressed();
