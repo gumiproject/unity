@@ -7,6 +7,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 {
     public static GameObject instance;
 
+    #region Public 변수 (인스펙터 설정)
     [Header("사운드")]
     public AudioClip deathSound;
     public AudioClip jumpSound;
@@ -41,20 +42,33 @@ public class PlayerController : MonoBehaviour, IDamageable
     public GameObject fireballPrefab;
     public Transform firePoint;
     public float fireCooldown = 0.1f;
+    
+    [Header("타기(Climbing)")]
+    public float climbSpeed = 4f;
 
-    // --- Private 변수 ---
+    [Header("수영 설정")]
+    public float swimSpeed = 3f;
+    public float swimJumpForce = 8f;
+    public float maxSwimTime = 5f;
+    public LayerMask waterLayer; // [추가] 물 레이어를 직접 지정
+    #endregion
+
+    #region Private 변수
+    // --- 컴포넌트 변수 ---
     private Rigidbody2D rb;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
     private PlayerInput playerInput;
     private AudioSource audioSource;
-    private Vector2 moveInput;
-    private Vector2 originalScale;
+    private Collider2D playerCollider;
 
     // --- 상태 변수 ---
-
-     private bool canDoubleJump = false;
+    private Vector2 moveInput;
+    private Vector2 originalScale;
+    private float originalGravityScale;
     private int currentHealth;
+    private float swimTimeRemaining;
+    private bool canDoubleJump = false;
     private bool isInvincible = false;
     private bool isDead = false;
     private bool isGrounded = true;
@@ -64,10 +78,14 @@ public class PlayerController : MonoBehaviour, IDamageable
     private bool canFire = true;
     private bool canDash = true;
     private bool isCrouching = false;
+    private bool isClimbing = false;
+    private bool isSwimming = false;
     private bool isFacingRight = true;
     private float lastInputTime = 0f;
     private int lastDirection = 0;
+    #endregion
 
+    #region Unity 생명주기 함수 (Awake, Update, FixedUpdate)
     void Awake()
     {
         if (instance == null)
@@ -86,28 +104,37 @@ public class PlayerController : MonoBehaviour, IDamageable
         spriteRenderer = GetComponent<SpriteRenderer>();
         playerInput = GetComponent<PlayerInput>();
         audioSource = GetComponent<AudioSource>();
+        playerCollider = GetComponent<Collider2D>();
         originalScale = transform.localScale;
+        originalGravityScale = rb.gravityScale;
         currentHealth = maxHealth;
+        swimTimeRemaining = maxSwimTime;
     }
 
     void Update()
-{
-    isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
+    {
+        isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
         
+        HandleClimbingAndSwimmingState();
 
-        if (isDead || isDashing || isInvincible) return;
+        if (isDead || isDashing || isInvincible || isClimbing || isSwimming) return;
 
         HandleCrouchState();
         HandleFacingDirection();
         ApplyVisuals();
-}
+    }
 
     void FixedUpdate()
     {
         if (isDead || isDashing) return;
-        HandleMovement();
-    }
 
+        if (isClimbing) HandleClimbingMovement();
+        else if (isSwimming) HandleSwimmingMovement();
+        else HandleNormalMovement();
+    }
+    #endregion
+
+    #region 데미지 및 사망 처리
     public void TakeDamage(Vector2 knockbackDirection)
     {
         if (isInvincible || isDead) return;
@@ -154,7 +181,9 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
         isInvincible = false;
     }
+    #endregion
 
+    #region 물리 충돌 처리
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDead) return;
@@ -172,7 +201,60 @@ public class PlayerController : MonoBehaviour, IDamageable
             }
         }
     }
+    #endregion
+    
+    #region 핵심 로직 함수들 (Movement, Visuals, etc.)
+    private void HandleClimbingAndSwimmingState()
+{
+    bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
+    bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
+    
+    // 수영 상태 결정
+    if (isTouchingWater && !isSwimming)
+    {
+        isSwimming = true;
+        isClimbing = false;
+    }
+    else if (!isTouchingWater && isSwimming)
+    {
+        isSwimming = false;
+        swimTimeRemaining = maxSwimTime;
+    }
 
+    // 사다리 타기 상태 결정
+    if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
+    {
+        isClimbing = true;
+    }
+    
+    if (!isTouchingClimbable && isClimbing)
+    {
+        isClimbing = false;
+    }
+    
+    // 상태에 따른 물리 효과 적용
+    if (isClimbing)
+    {
+        rb.gravityScale = 0f;
+    }
+    else if (isSwimming)
+    {
+        rb.gravityScale = originalGravityScale * 0.4f;
+        rb.linearDamping = 3f;
+        
+        swimTimeRemaining -= Time.deltaTime;
+        if (swimTimeRemaining <= 0) Die();
+    }
+    else
+    {
+        rb.gravityScale = originalGravityScale;
+        rb.linearDamping = 0f;
+    }
+
+    // [수정] 사다리를 탈 때만 땅을 무시하도록 변경
+    Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
+}
+    
     private void HandleCrouchState()
     {
         bool wantsToCrouch = playerInput.actions["Crouch"].IsPressed();
@@ -181,10 +263,13 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     private void HandleFacingDirection()
-    {
-        if (moveInput.x > 0) isFacingRight = true;
-        else if (moveInput.x < 0) isFacingRight = false;
-    }
+{
+    // 사다리를 탈 때만 방향 전환을 막고, 수영 중에는 허용합니다.
+    if (isClimbing) return;
+
+    if (moveInput.x > 0) isFacingRight = true;
+    else if (moveInput.x < 0) isFacingRight = false;
+}
 
     private void ApplyVisuals()
     {
@@ -195,9 +280,11 @@ public class PlayerController : MonoBehaviour, IDamageable
         animator.SetBool("isRunning", isRunning);
         animator.SetBool("isCrouching", isCrouching);
         animator.SetBool("isJumping", !isGrounded);
+        animator.SetBool("isClimbing", isClimbing);
+        animator.SetBool("isSwimming", isSwimming);
     }
-
-    private void HandleMovement()
+    
+    private void HandleNormalMovement()
     {
         float currentSpeed = moveSpeed;
         if (isRunning && !isCrouching) currentSpeed = runSpeed;
@@ -205,15 +292,36 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb.linearVelocity = new Vector2(moveInput.x * currentSpeed, rb.linearVelocity.y);
     }
 
+    private void HandleClimbingMovement()
+    {
+        float verticalInput = moveInput.y;
+        float horizontalInput = moveInput.x;
+        rb.linearVelocity = new Vector2(horizontalInput * (moveSpeed / 2), verticalInput * climbSpeed);
+    }
+
+    private void HandleSwimmingMovement()
+    {
+        rb.linearVelocity = moveInput * swimSpeed;
+    }
+
     private bool CanStandUp()
     {
         return !Physics2D.OverlapBox(ceilingCheck.position, ceilingCheckSize, 0f, groundLayer);
     }
-
+    #endregion
+    
+    #region Input System 이벤트 함수들
     public void OnMove(InputValue value)
     {
         if (isDead) { moveInput = Vector2.zero; return; }
         Vector2 input = value.Get<Vector2>();
+
+        if (isClimbing || isSwimming)
+        {
+            moveInput = input;
+            return;
+        }
+        
         if (isCrouching || isDashing || isInvincible) isRunning = false;
         else if (input.x != 0)
         {
@@ -229,36 +337,46 @@ public class PlayerController : MonoBehaviour, IDamageable
     public void OnJump(InputValue value)
     {
         if (isDead || !value.isPressed) return;
+        
+         if (isSwimming)
+    {
+        // [수정] Y축 속도만 직접 변경하여 점프 힘이 덮어쓰이지 않게 함
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
+        return;
+    }
 
-        // 1. 땅에 있을 때 점프 (항상 가능)
+        if (isClimbing)
+        {
+            isClimbing = false;
+            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+            rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, jumpForce);
+            return;
+        }
+        
         if (isGrounded && !isDashing && !isCrouching)
         {
             if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
             animator.SetTrigger("jump");
         }
-        // 2. [수정] 공중이고, 2단 점프가 가능할 때 (canDoubleJump == true)
         else if (!isGrounded && canDoubleJump && !isDashing && !isCrouching)
         {
             if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-            
-            // [수정] 사용 즉시 2단 점프 권한을 false로 변경하여 1회용으로 만듭니다.
             canDoubleJump = false;
-            
             animator.SetTrigger("jump");
         }
     }
 
     public void OnDash(InputValue value)
     {
-        if (isDead) return;
+        if (isDead || isSwimming || isClimbing) return;
         if (value.isPressed && canDash && !isCrouching) StartCoroutine(Dash());
     }
-
+    
     public void OnFire(InputValue value)
     {
-        if (!canFire || isDead || isCrouching || isDashing || !value.isPressed)
+        if (!canFire || isDead || isCrouching || isDashing || isClimbing || isSwimming || !value.isPressed)
         {
             return;
         }
@@ -268,7 +386,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         {
             audioSource.PlayOneShot(fireSound);
         }
-
+        
         GameObject fireballObject = Instantiate(fireballPrefab, firePoint.position, Quaternion.identity);
         Fireball fireball = fireballObject.GetComponent<Fireball>();
         if (fireball != null)
@@ -277,7 +395,14 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
         StartCoroutine(FireCooldownCoroutine());
     }
+    #endregion
 
+    #region 코루틴 (Coroutines)
+    public void ActivateDoubleJump()
+    {
+        canDoubleJump = true;
+    }
+    
     private IEnumerator FireCooldownCoroutine()
     {
         yield return new WaitForSeconds(fireCooldown);
@@ -288,6 +413,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         canDash = false;
         isDashing = true;
+        isClimbing = false;
         isRunning = false;
         animator.SetBool("isDashing", true);
         float originalGravity = rb.gravityScale;
@@ -300,7 +426,9 @@ public class PlayerController : MonoBehaviour, IDamageable
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
     }
-
+    #endregion
+    
+    #region 디버깅용 Gizmo
     private void OnDrawGizmosSelected()
     {
         if (groundCheck != null)
@@ -314,12 +442,5 @@ public class PlayerController : MonoBehaviour, IDamageable
             Gizmos.DrawWireCube(ceilingCheck.position, ceilingCheckSize);
         }
     }
-
-    public void ActivateDoubleJump()
-    {
-        Debug.Log("2단 점프 1회 가능!");
-        // [수정] 2단 점프를 가능하게만 설정합니다.
-        canDoubleJump = true;
-    }
-
+    #endregion
 }
