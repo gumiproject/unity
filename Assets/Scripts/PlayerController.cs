@@ -252,7 +252,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     #region 핵심 로직 함수들 (Movement, Visuals, etc.)
     // ... Handle...(), ApplyVisuals(), CanStandUp() 등 모든 기존 함수들은 그대로 둡니다 ...
     private void HandleClimbingAndSwimmingState()
-{
+    {  
     bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
     bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
 
@@ -311,7 +311,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
-}
+    }
     private void HandleCrouchState()
     {
         bool wantsToCrouch = playerInput.actions["Crouch"].IsPressed();
@@ -393,6 +393,19 @@ public class PlayerController : MonoBehaviour, IDamageable
             return;
         }
         // --- ▲▲▲ 여기까지 ▲▲▲ ---
+
+        if (canLoadNextScene && value.isPressed)
+        {
+            // ▼▼▼ 이 부분을 수정 ▼▼▼
+            // 다음 씬으로 가기 전에, 파괴되지 않도록 설정된 자기 자신(플레이어)을 파괴합니다.
+            Destroy(gameObject);
+        
+            // 그 다음에 다음 씬을 불러옵니다.
+            SceneManager.LoadScene(sceneToLoad);
+            return; // 씬을 로드하고, 점프 로직은 실행하지 않음
+            // --- ▲▲▲ 여기까지 ---
+        }
+
 
         if (isDead || !value.isPressed) return;
         
