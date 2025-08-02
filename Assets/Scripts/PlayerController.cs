@@ -1,6 +1,6 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement; // 씬 전환을 위해 필요
+using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour, IDamageable
@@ -42,7 +42,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public GameObject fireballPrefab;
     public Transform firePoint;
     public float fireCooldown = 0.1f;
-
+    
     [Header("타기(Climbing)")]
     public float climbSpeed = 4f;
 
@@ -51,11 +51,6 @@ public class PlayerController : MonoBehaviour, IDamageable
     public float swimJumpForce = 8f;
     public float maxSwimTime = 5f;
     public LayerMask waterLayer;
-
-    // --- ▼▼▼ UI 참조를 위한 변수 추가 ▼▼▼ ---
-    [Header("UI 설정")]
-    public GameObject goalPromptUI; // 깃발에 닿았을 때 활성화할 UI 오브젝트
-    // --- ▲▲▲ 여기까지 ▲▲▲ ---
     #endregion
 
     #region Private 변수
@@ -88,14 +83,8 @@ public class PlayerController : MonoBehaviour, IDamageable
     private bool isFacingRight = true;
     private float lastInputTime = 0f;
     private int lastDirection = 0;
-
-    // --- ▼▼▼ 씬 전환에 필요한 새 변수들 (이 부분 추가) ▼▼▼ ---
-    private bool canLoadNextScene = false; // 다음 씬으로 이동 가능한 상태인지
-    private string sceneToLoad;            // 이동할 씬의 이름
-    // --- ▲▲▲ 여기까지 ▲▲▲ ---
     #endregion
 
-    // ... 기존 Awake, Update, FixedUpdate, 데미지 및 사망 처리, 물리 충돌 처리 등은 그대로 둡니다 ...
     #region Unity 생명주기 함수 (Awake, Update, FixedUpdate)
     void Awake()
     {
@@ -104,11 +93,11 @@ public class PlayerController : MonoBehaviour, IDamageable
             instance = this.gameObject;
             DontDestroyOnLoad(gameObject);
         }
-         else if (instance != this.gameObject)
+        else if (instance != this.gameObject)
         {
             Destroy(gameObject);
             return;
-        } 
+        }
 
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
@@ -125,7 +114,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     void Update()
     {
         isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
-
+        
         HandleClimbingAndSwimmingState();
 
         if (isDead || isDashing || isInvincible || isClimbing || isSwimming) return;
@@ -170,7 +159,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb.bodyType = RigidbodyType2D.Dynamic;
         rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse);
         yield return new WaitForSeconds(1.5f);
-        GameManager.instance.RestartSceneWithDelay(0f); // GameManager가 있다면 사용
+        GameManager.instance.RestartSceneWithDelay(0f);
         Destroy(gameObject);
     }
 
@@ -185,15 +174,16 @@ public class PlayerController : MonoBehaviour, IDamageable
         float endTime = Time.time + invincibilityDuration;
         while (Time.time < endTime)
         {
-            spriteRenderer.enabled = !spriteRenderer.enabled;
+            spriteRenderer.enabled = false;
+            yield return new WaitForSeconds(0.1f);
+            spriteRenderer.enabled = true;
             yield return new WaitForSeconds(0.1f);
         }
-        spriteRenderer.enabled = true;
         isInvincible = false;
     }
     #endregion
 
-    #region 물리 충돌 처리 (Collision & Trigger)
+    #region 물리 충돌 처리
     private void OnCollisionEnter2D(Collision2D collision)
     {
         if (isDead) return;
@@ -204,7 +194,6 @@ public class PlayerController : MonoBehaviour, IDamageable
             {
                 if (contact.normal.y < -0.5f)
                 {
-                    // (코드가 길어 생략, 기존 코드와 동일)
                     Destroy(collision.gameObject);
                     rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce * 0.7f);
                     return;
@@ -212,49 +201,14 @@ public class PlayerController : MonoBehaviour, IDamageable
             }
         }
     }
-
-    // --- ▼▼▼ 씬 전환을 위한 트리거 감지 함수들 (이 부분 추가) ▼▼▼ ---
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        // "Goal" 태그를 가진 오브젝트의 트리거에 닿았을 때
-        if (other.CompareTag("Goal"))
-        {
-            canLoadNextScene = true;
-            sceneToLoad = other.GetComponent<GoalFlag>().nextSceneName;
-
-            // UI 텍스트를 활성화합니다.
-            if (goalPromptUI != null)
-            {
-                goalPromptUI.SetActive(true);
-            }
-        }
-    }
-
-    private void OnTriggerExit2D(Collider2D other)
-    {
-        // "Goal" 태그를 가진 오브젝트의 트리거에서 벗어났을 때
-        if (other.CompareTag("Goal"))
-        {
-            canLoadNextScene = false;
-            sceneToLoad = null;
-
-            // UI 텍스트를 비활성화합니다.
-            if (goalPromptUI != null)
-            {
-                goalPromptUI.SetActive(false);
-            }
-        }
-    }
-    // --- ▲▲▲ 여기까지 ▲▲▲ ---
     #endregion
     
-    #region 핵심 로직 함수들 (Movement, Visuals, etc.)
-    // ... Handle...(), ApplyVisuals(), CanStandUp() 등 모든 기존 함수들은 그대로 둡니다 ...
+    #region 핵심 로직 함수들
     private void HandleClimbingAndSwimmingState()
-    {  
+{
     bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
     bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
-
+    
     // 수영 상태 결정
     if (isTouchingWater &&!isSwimming)
     {
@@ -272,19 +226,22 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         isClimbing = true;
     }
-
+    
     if (!isTouchingClimbable && isClimbing)
     {
         isClimbing = false;
     }
-
-    // 대쉬 상태 결정
+    
+    // [수정된 핵심 로직]
+    // 대쉬 상태를 최우선으로 확인하여, 대쉬 중에는 이 함수가 물리 상태를 변경하지 못하도록 합니다.
     if (isDashing)
-        {
-
-            return;
-        }
-
+    {
+        // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
+        // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
+        // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
+        return; 
+    }
+    
     // 상태에 따른 물리 효과 적용
     if (isClimbing)
     {
@@ -295,7 +252,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         rb.gravityScale = originalGravityScale * 0.4f;
         rb.linearDamping = 3f;
-
+        
         swimTimeRemaining -= Time.deltaTime;
         if (swimTimeRemaining <= 0) Die();
     }
@@ -307,24 +264,35 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
-    }
+}
+    
     private void HandleCrouchState()
     {
         bool wantsToCrouch = playerInput.actions["Crouch"].IsPressed();
         if (wantsToCrouch && isGrounded) isCrouching = true;
         else if (!wantsToCrouch && CanStandUp()) isCrouching = false;
     }
+
     private void HandleFacingDirection()
     {
         if (isClimbing) return;
-        if (moveInput.x > 0) isFacingRight = true;
-        else if (moveInput.x < 0) isFacingRight = false;
+        if (moveInput.x > 0 && !isFacingRight) Flip();
+        else if (moveInput.x < 0 && isFacingRight) Flip();
     }
+
+    private void Flip()
+    {
+        isFacingRight = !isFacingRight;
+        Vector3 newScale = transform.localScale;
+        newScale.x *= -1;
+        transform.localScale = newScale;
+    }
+
     private void ApplyVisuals()
     {
         float targetYScale = isCrouching ? originalScale.y * 0.5f : originalScale.y;
-        float targetXScale = isFacingRight ? originalScale.x : -originalScale.x;
-        transform.localScale = new Vector3(targetXScale, targetYScale, transform.localScale.z);
+        transform.localScale = new Vector3(transform.localScale.x, targetYScale, transform.localScale.z);
+        
         animator.SetBool("isMoving", moveInput.x != 0);
         animator.SetBool("isRunning", isRunning);
         animator.SetBool("isCrouching", isCrouching);
@@ -332,6 +300,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         animator.SetBool("isClimbing", isClimbing);
         animator.SetBool("isSwimming", isSwimming);
     }
+    
     private void HandleNormalMovement()
     {
         float currentSpeed = moveSpeed;
@@ -339,16 +308,19 @@ public class PlayerController : MonoBehaviour, IDamageable
         if (isCrouching) currentSpeed = crouchSpeed;
         rb.linearVelocity = new Vector2(moveInput.x * currentSpeed, rb.linearVelocity.y);
     }
+
     private void HandleClimbingMovement()
     {
         float verticalInput = moveInput.y;
         float horizontalInput = moveInput.x;
         rb.linearVelocity = new Vector2(horizontalInput * (moveSpeed / 2), verticalInput * climbSpeed);
     }
+
     private void HandleSwimmingMovement()
     {
         rb.linearVelocity = moveInput * swimSpeed;
     }
+
     private bool CanStandUp()
     {
         return !Physics2D.OverlapBox(ceilingCheck.position, ceilingCheckSize, 0f, groundLayer);
@@ -360,36 +332,36 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         if (isDead) { moveInput = Vector2.zero; return; }
         Vector2 input = value.Get<Vector2>();
+
         if (isClimbing || isSwimming)
         {
             moveInput = input;
             return;
         }
-        if (isCrouching || isDashing || isInvincible) isRunning = false;
+        
+        if (isCrouching || isDashing || isInvincible) 
+        {
+            isRunning = false;
+        }
         else if (input.x != 0)
         {
             int currentDirection = input.x > 0 ? 1 : -1;
-            if (currentDirection == lastDirection && Time.time - lastInputTime < doubleTapThreshold) isRunning = true;
+            if (currentDirection == lastDirection && Time.time - lastInputTime < doubleTapThreshold)
+            {
+                isRunning = true;
+            }
             lastInputTime = Time.time;
             lastDirection = currentDirection;
         }
-        else isRunning = false;
+        else 
+        {
+            isRunning = false;
+        }
         moveInput = input;
     }
 
-    // --- OnJump 함수 수정 ---
     public void OnJump(InputValue value)
     {
-        // --- ▼▼▼ OnJump 함수 맨 위에 이 로직 추가 ▼▼▼ ---
-        if (canLoadNextScene && value.isPressed)
-        {
-            // 다음 씬으로 넘어가기 전에 UI를 숨깁니다.
-            if (goalPromptUI != null) goalPromptUI.SetActive(false);
-            SceneManager.LoadScene(sceneToLoad);
-            return;
-        }
-        // --- ▲▲▲ 여기까지 ▲▲▲ ---
-
         if (isDead || !value.isPressed) return;
         
         if (isSwimming)
@@ -397,6 +369,7 @@ public class PlayerController : MonoBehaviour, IDamageable
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
             return;
         }
+
         if (isClimbing)
         {
             isClimbing = false;
@@ -420,45 +393,72 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
     }
 
-    // ... OnDash(), OnFire() 등 모든 기존 함수들은 그대로 둡니다 ...
     public void OnDash(InputValue value)
     {
         if (isDead || isSwimming || isClimbing) return;
         if (value.isPressed && canDash && !isCrouching) StartCoroutine(Dash());
     }
+    
     public void OnFire(InputValue value)
     {
-        if (!canFire || isDead || isCrouching || isDashing || isClimbing || isSwimming || !value.isPressed) return;
+        if (!canFire || isDead || isCrouching || isDashing || isClimbing || isSwimming || !value.isPressed)
+        {
+            return;
+        }
         canFire = false;
-        if (fireSound != null) audioSource.PlayOneShot(fireSound);
+
+        if (fireSound != null)
+        {
+            audioSource.PlayOneShot(fireSound);
+        }
+        
         GameObject fireballObject = Instantiate(fireballPrefab, firePoint.position, Quaternion.identity);
         Fireball fireball = fireballObject.GetComponent<Fireball>();
-        if (fireball != null) fireball.Launch(isFacingRight);
+        if (fireball != null)
+        {
+            fireball.Launch(isFacingRight);
+        }
         StartCoroutine(FireCooldownCoroutine());
+    }
+    
+    // [추가] 씬 전환 직전에 GoalFlag가 호출할 함수
+    public void PrepareForSceneChange()
+    {
+        SceneManager.MoveGameObjectToScene(this.gameObject, SceneManager.GetActiveScene());
     }
     #endregion
 
     #region 코루틴 (Coroutines)
-    public void ActivateDoubleJump() { canDoubleJump = true; }
+    public void ActivateDoubleJump()
+    {
+        canDoubleJump = true;
+    }
+    
     private IEnumerator FireCooldownCoroutine()
     {
         yield return new WaitForSeconds(fireCooldown);
         canFire = true;
     }
+
     private IEnumerator Dash()
     {
         canDash = false;
         isDashing = true;
-        isClimbing = false;
         isRunning = false;
+        isClimbing = false;
         animator.SetBool("isDashing", true);
+        
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
-        rb.linearVelocity = new Vector2((isFacingRight ? 1 : -1) * dashPower, 0f);
+        
+        rb.linearVelocity = new Vector2(transform.localScale.x > 0 ? dashPower : -dashPower, 0f);
+
         yield return new WaitForSeconds(dashingTime);
+        
         rb.gravityScale = originalGravity;
         isDashing = false;
         animator.SetBool("isDashing", false);
+        
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
     }
@@ -474,7 +474,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
         if (ceilingCheck != null)
         {
-            Gizmos.color = CanStandUp() ? Color.green : Color.red;
+            Gizmos.color = CanStandUp() ? Color.red : Color.green;
             Gizmos.DrawWireCube(ceilingCheck.position, ceilingCheckSize);
         }
     }

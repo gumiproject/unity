@@ -1,30 +1,65 @@
 using UnityEngine;
 using UnityEngine.SceneManagement; 
+using UnityEngine.InputSystem;
 
 public class GoalFlag : MonoBehaviour
 {
-    // 인스펙터 창에서 이동할 씬의 이름을 직접 입력받습니다.
-    public string nextSceneName;
+    [Header("설정")]
+    public string nextSceneName; // 이동할 씬 이름
+    public GameObject goalPromptUI; // 활성화할 UI 오브젝트
+
+    // --- Private 변수 ---
+    private bool playerIsInRange = false; // 플레이어가 범위 안에 있는지 여부
+
+    void Start()
+    {
+        if (goalPromptUI != null)
+        {
+            goalPromptUI.SetActive(false);
+        }
+    }
+
+    void Update()
+    {
+        // 플레이어가 범위 안에 있고, 점프 키(스페이스바)를 눌렀을 때
+        if (playerIsInRange && Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            // [핵심 수정] PlayerController 컴포넌트를 직접 찾아 함수를 호출합니다.
+            if (PlayerController.instance != null)
+            {
+                PlayerController player = PlayerController.instance.GetComponent<PlayerController>();
+                if (player != null)
+                {
+                    player.PrepareForSceneChange();
+                }
+            }
+
+            // 다음 씬 로드
+            SceneManager.LoadScene(nextSceneName);
+        }
+    }
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        // 들어온 오브젝트의 태그가 "Player"인지 확인합니다.
         if (other.CompareTag("Player"))
         {
-            Debug.Log("플레이어가 골인 지점에 도착! DontDestroyOnLoad를 해제합니다.");
-
-            // 1. DontDestroyOnLoad로 보호받고 있는 플레이어 오브젝트를 찾습니다.
-            GameObject playerObject = PlayerController.instance.gameObject;
-
-            if (playerObject != null)
+            playerIsInRange = true;
+            if (goalPromptUI != null)
             {
-                // 2. [핵심] 플레이어를 DontDestroyOnLoad 씬에서 현재 활성화된 씬으로 다시 옮깁니다.
-                // 이렇게 하면, 다음 씬이 로드될 때 이 플레이어는 정상적으로 파괴됩니다.
-                SceneManager.MoveGameObjectToScene(playerObject, SceneManager.GetActiveScene());
+                goalPromptUI.SetActive(true);
             }
+        }
+    }
 
-            // 3. 이제 플레이어가 파괴될 준비가 되었으니, 다음 씬을 불러옵니다.
-            SceneManager.LoadScene(nextSceneName);
+    private void OnTriggerExit2D(Collider2D other)
+    {
+        if (other.CompareTag("Player"))
+        {
+            playerIsInRange = false;
+            if (goalPromptUI != null)
+            {
+                goalPromptUI.SetActive(false);
+            }
         }
     }
 }
