@@ -42,7 +42,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public GameObject fireballPrefab;
     public Transform firePoint;
     public float fireCooldown = 0.1f;
-    
+
     [Header("타기(Climbing)")]
     public float climbSpeed = 4f;
 
@@ -83,6 +83,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private bool isFacingRight = true;
     private float lastInputTime = 0f;
     private int lastDirection = 0;
+    private bool isForceMoving = false;
     #endregion
 
     #region Unity 생명주기 함수 (Awake, Update, FixedUpdate)
@@ -114,10 +115,10 @@ public class PlayerController : MonoBehaviour, IDamageable
     void Update()
     {
         isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
-        
+
         HandleClimbingAndSwimmingState();
 
-        if (isDead || isDashing || isInvincible || isClimbing || isSwimming) return;
+        if (isDead || isDashing || isInvincible || isClimbing || isSwimming || isForceMoving) return;
 
         HandleCrouchState();
         HandleFacingDirection();
@@ -126,7 +127,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     void FixedUpdate()
     {
-        if (isDead || isDashing) return;
+        if (isDead || isDashing || isForceMoving) return;
 
         if (isClimbing) HandleClimbingMovement();
         else if (isSwimming) HandleSwimmingMovement();
@@ -152,16 +153,29 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     private IEnumerator DieSequence()
-    {
-        playerInput.enabled = false;
-        GetComponent<Collider2D>().enabled = false;
-        rb.linearVelocity = Vector2.zero;
-        rb.bodyType = RigidbodyType2D.Dynamic;
-        rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse);
-        yield return new WaitForSeconds(1.5f);
-        GameManager.instance.RestartSceneWithDelay(0f);
-        Destroy(gameObject);
-    }
+{
+    // 1. 모든 입력을 즉시 중단합니다.
+    playerInput.enabled = false;
+
+    // 2. 다른 오브젝트와 충돌하지 않도록 콜라이더를 비활성화합니다.
+    GetComponent<Collider2D>().enabled = false;
+
+    // 3. [핵심 수정] 물리적 움직임을 완전히 초기화합니다.
+    rb.linearVelocity = Vector2.zero;
+    rb.angularVelocity = 0f;
+    rb.bodyType = RigidbodyType2D.Static; // 모든 물리 효과를 완전히 끔
+
+    // 물리 상태가 업데이트될 때까지 한 프레임 기다립니다.
+    yield return new WaitForFixedUpdate();
+
+    // 4. 다시 물리 효과를 켜서 튀어 오를 준비를 합니다.
+    rb.bodyType = RigidbodyType2D.Dynamic;
+    rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse); // 위로 튀어 오릅니다.
+
+    // 5. 씬 재시작 및 오브젝트 파괴를 예약합니다.
+    GameManager.instance.RestartSceneWithDelay(1.5f);
+    Destroy(gameObject, 1.5f);
+}
 
     private IEnumerator InvincibilityCoroutine(Vector2 knockbackDirection)
     {
@@ -188,6 +202,24 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         if (isDead) return;
 
+        if (isForceMoving)
+        {
+            // 1. 몬스터("Enemy" 태그)와 부딪혔을 경우
+            if (collision.gameObject.CompareTag("Enemy"))
+            {
+                isForceMoving = false;
+                Die();
+            }
+            // 2. 땅(groundLayer)과 부딪혔을 경우 (Tilemap)
+            // groundLayer에 포함된 레이어와 부딪혔는지 비트 연산으로 확인
+            else if (((1 << collision.gameObject.layer) & groundLayer) != 0)
+            {
+                // 강제 이동 상태를 해제 (이렇게 하면 코루틴의 while 루프가 중단됨)
+                isForceMoving = false;
+            }
+            return; // 강제 이동 중에는 아래의 일반 충돌 로직을 실행하지 않음
+        }
+
         if (collision.gameObject.CompareTag("Enemy"))
         {
             foreach (ContactPoint2D contact in collision.contacts)
@@ -202,70 +234,70 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
     }
     #endregion
-    
+
     #region 핵심 로직 함수들
     private void HandleClimbingAndSwimmingState()
-{
-    bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
-    bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
-    
-    // 수영 상태 결정
-    if (isTouchingWater &&!isSwimming)
     {
-        isSwimming = true;
-        isClimbing = false;
-    }
-    else if (!isTouchingWater && isSwimming)
-    {
-        isSwimming = false;
-        swimTimeRemaining = maxSwimTime;
+        bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
+        bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
+
+        // 수영 상태 결정
+        if (isTouchingWater && !isSwimming)
+        {
+            isSwimming = true;
+            isClimbing = false;
+        }
+        else if (!isTouchingWater && isSwimming)
+        {
+            isSwimming = false;
+            swimTimeRemaining = maxSwimTime;
+        }
+
+        // 사다리 타기 상태 결정
+        if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
+        {
+            isClimbing = true;
+        }
+
+        if (!isTouchingClimbable && isClimbing)
+        {
+            isClimbing = false;
+        }
+
+        // [수정된 핵심 로직]
+        // 대쉬 상태를 최우선으로 확인하여, 대쉬 중에는 이 함수가 물리 상태를 변경하지 못하도록 합니다.
+        if (isDashing)
+        {
+            // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
+            // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
+            // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
+            return;
+        }
+
+        // 상태에 따른 물리 효과 적용
+        if (isClimbing)
+        {
+            rb.gravityScale = 0f;
+            rb.linearDamping = 0f; // 일관성을 위해 사다리에서도 Damping 초기화
+        }
+        else if (isSwimming)
+        {
+            rb.gravityScale = originalGravityScale * 0.4f;
+            rb.linearDamping = 3f;
+
+            swimTimeRemaining -= Time.deltaTime;
+            if (swimTimeRemaining <= 0) Die();
+        }
+        else
+        {
+            // 기본 상태: 등반, 수영, 대쉬가 아닐 때만 실행됩니다.
+            rb.gravityScale = originalGravityScale;
+            rb.linearDamping = 0f;
+        }
+
+        Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
     }
 
-    // 사다리 타기 상태 결정
-    if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
-    {
-        isClimbing = true;
-    }
-    
-    if (!isTouchingClimbable && isClimbing)
-    {
-        isClimbing = false;
-    }
-    
-    // [수정된 핵심 로직]
-    // 대쉬 상태를 최우선으로 확인하여, 대쉬 중에는 이 함수가 물리 상태를 변경하지 못하도록 합니다.
-    if (isDashing)
-    {
-        // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
-        // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
-        // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
-        return; 
-    }
-    
-    // 상태에 따른 물리 효과 적용
-    if (isClimbing)
-    {
-        rb.gravityScale = 0f;
-        rb.linearDamping = 0f; // 일관성을 위해 사다리에서도 Damping 초기화
-    }
-    else if (isSwimming)
-    {
-        rb.gravityScale = originalGravityScale * 0.4f;
-        rb.linearDamping = 3f;
-        
-        swimTimeRemaining -= Time.deltaTime;
-        if (swimTimeRemaining <= 0) Die();
-    }
-    else
-    {
-        // 기본 상태: 등반, 수영, 대쉬가 아닐 때만 실행됩니다.
-        rb.gravityScale = originalGravityScale;
-        rb.linearDamping = 0f;
-    }
-
-    Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
-}
-    
     private void HandleCrouchState()
     {
         bool wantsToCrouch = playerInput.actions["Crouch"].IsPressed();
@@ -292,7 +324,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         float targetYScale = isCrouching ? originalScale.y * 0.5f : originalScale.y;
         transform.localScale = new Vector3(transform.localScale.x, targetYScale, transform.localScale.z);
-        
+
         animator.SetBool("isMoving", moveInput.x != 0);
         animator.SetBool("isRunning", isRunning);
         animator.SetBool("isCrouching", isCrouching);
@@ -300,7 +332,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         animator.SetBool("isClimbing", isClimbing);
         animator.SetBool("isSwimming", isSwimming);
     }
-    
+
     private void HandleNormalMovement()
     {
         float currentSpeed = moveSpeed;
@@ -326,7 +358,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         return !Physics2D.OverlapBox(ceilingCheck.position, ceilingCheckSize, 0f, groundLayer);
     }
     #endregion
-    
+
     #region Input System 이벤트 함수들
     public void OnMove(InputValue value)
     {
@@ -338,8 +370,8 @@ public class PlayerController : MonoBehaviour, IDamageable
             moveInput = input;
             return;
         }
-        
-        if (isCrouching || isDashing || isInvincible) 
+
+        if (isCrouching || isDashing || isInvincible)
         {
             isRunning = false;
         }
@@ -353,7 +385,7 @@ public class PlayerController : MonoBehaviour, IDamageable
             lastInputTime = Time.time;
             lastDirection = currentDirection;
         }
-        else 
+        else
         {
             isRunning = false;
         }
@@ -363,7 +395,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public void OnJump(InputValue value)
     {
         if (isDead || !value.isPressed) return;
-        
+
         if (isSwimming)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
@@ -377,7 +409,7 @@ public class PlayerController : MonoBehaviour, IDamageable
             rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, jumpForce);
             return;
         }
-        
+
         if (isGrounded && !isDashing && !isCrouching)
         {
             if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
@@ -398,7 +430,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         if (isDead || isSwimming || isClimbing) return;
         if (value.isPressed && canDash && !isCrouching) StartCoroutine(Dash());
     }
-    
+
     public void OnFire(InputValue value)
     {
         if (!canFire || isDead || isCrouching || isDashing || isClimbing || isSwimming || !value.isPressed)
@@ -411,7 +443,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         {
             audioSource.PlayOneShot(fireSound);
         }
-        
+
         GameObject fireballObject = Instantiate(fireballPrefab, firePoint.position, Quaternion.identity);
         Fireball fireball = fireballObject.GetComponent<Fireball>();
         if (fireball != null)
@@ -420,7 +452,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
         StartCoroutine(FireCooldownCoroutine());
     }
-    
+
     // [추가] 씬 전환 직전에 GoalFlag가 호출할 함수
     public void PrepareForSceneChange()
     {
@@ -433,7 +465,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         canDoubleJump = true;
     }
-    
+
     private IEnumerator FireCooldownCoroutine()
     {
         yield return new WaitForSeconds(fireCooldown);
@@ -447,23 +479,23 @@ public class PlayerController : MonoBehaviour, IDamageable
         isRunning = false;
         isClimbing = false;
         animator.SetBool("isDashing", true);
-        
+
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
-        
+
         rb.linearVelocity = new Vector2(transform.localScale.x > 0 ? dashPower : -dashPower, 0f);
 
         yield return new WaitForSeconds(dashingTime);
-        
+
         rb.gravityScale = originalGravity;
         isDashing = false;
         animator.SetBool("isDashing", false);
-        
+
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
     }
     #endregion
-    
+
     #region 디버깅용 Gizmo
     private void OnDrawGizmosSelected()
     {
@@ -479,4 +511,30 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
     }
     #endregion
+
+    public void StartForcedMove(float targetY)
+    {
+        if (isForceMoving || isDead) return;
+
+        StartCoroutine(ForcedMoveCoroutine(targetY));
+    }
+
+    private IEnumerator ForcedMoveCoroutine(float targetY)
+    {
+        isForceMoving = true;
+        playerInput.enabled = false;
+        
+        transform.position = new Vector3(transform.position.x, targetY, transform.position.z);
+        float moveDirection = 1f;
+
+        while (isForceMoving)
+        {
+            if (isDead) break;
+            rb.linearVelocity = new Vector2(moveDirection * 10f, 1f);
+            yield return new WaitForFixedUpdate();
+        }
+
+        rb.linearVelocity = Vector2.zero;
+        playerInput.enabled = true;
+    }
 }
