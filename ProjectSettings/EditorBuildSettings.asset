@@ -36,7 +36,7 @@ EditorBuildSettings:
     path: Assets/Scenes/1-3_future.unity
     guid: 6307241ac32004740b865828fdc16873
   - enabled: 1
-    path: Assets/Scenes/1-3_post.unity
+    path: Assets/Scenes/pjw_post.unity
     guid: 0b56ec3e9abae684983ddc09a25a9df1
   - enabled: 1
     path: Assets/Scenes/1-4_future.unity
