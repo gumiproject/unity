@@ -153,16 +153,29 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     private IEnumerator DieSequence()
-    {
-        playerInput.enabled = false;
-        GetComponent<Collider2D>().enabled = false;
-        rb.linearVelocity = Vector2.zero;
-        rb.bodyType = RigidbodyType2D.Dynamic;
-        rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse);
-        yield return new WaitForSeconds(1.5f);
-        GameManager.instance.RestartSceneWithDelay(0f);
-        Destroy(gameObject);
-    }
+{
+    // 1. 모든 입력을 즉시 중단합니다.
+    playerInput.enabled = false;
+
+    // 2. 다른 오브젝트와 충돌하지 않도록 콜라이더를 비활성화합니다.
+    GetComponent<Collider2D>().enabled = false;
+
+    // 3. [핵심 수정] 물리적 움직임을 완전히 초기화합니다.
+    rb.linearVelocity = Vector2.zero;
+    rb.angularVelocity = 0f;
+    rb.bodyType = RigidbodyType2D.Static; // 모든 물리 효과를 완전히 끔
+
+    // 물리 상태가 업데이트될 때까지 한 프레임 기다립니다.
+    yield return new WaitForFixedUpdate();
+
+    // 4. 다시 물리 효과를 켜서 튀어 오를 준비를 합니다.
+    rb.bodyType = RigidbodyType2D.Dynamic;
+    rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse); // 위로 튀어 오릅니다.
+
+    // 5. 씬 재시작 및 오브젝트 파괴를 예약합니다.
+    GameManager.instance.RestartSceneWithDelay(1.5f);
+    Destroy(gameObject, 1.5f);
+}
 
     private IEnumerator InvincibilityCoroutine(Vector2 knockbackDirection)
     {
@@ -516,6 +529,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
         while (isForceMoving)
         {
+            if (isDead) break;
             rb.linearVelocity = new Vector2(moveDirection * 10f, 1f);
             yield return new WaitForFixedUpdate();
         }
