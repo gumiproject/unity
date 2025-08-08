@@ -70,7 +70,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private Collider2D playerCollider;
 
     // --- 상태 변수 ---
-     private float poisonDamageTimer; // [추가] 독 데미지 타이머
+    private float poisonDamageTimer; // [추가] 독 데미지 타이머
     private bool canJump = true; // [추가] 현재 점프 가능한지 여부
     private bool isWaterJumping = false;
     private Vector2 moveInput;
@@ -104,6 +104,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         {
             instance = this.gameObject;
             DontDestroyOnLoad(gameObject);
+            SceneManager.sceneLoaded += OnSceneLoaded; // 씬 로드 이벤트에 등록
         }
         else if (instance != this.gameObject)
         {
@@ -121,6 +122,10 @@ public class PlayerController : MonoBehaviour, IDamageable
         originalGravityScale = rb.gravityScale;
         currentHealth = maxHealth;
         swimTimeRemaining = maxSwimTime;
+
+        UIManager.instance.UpdateHealthUI(currentHealth);
+        // [추가] 게임 시작 시 2단 점프 아이콘을 비활성화
+        UIManager.instance.SetDoubleJumpIconActive(false);
     }
 
     void Update()
@@ -151,6 +156,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         if (isInvincible || isDead) return;
         currentHealth--;
+        UIManager.instance.UpdateHealthUI(currentHealth);
         if (currentHealth <= 0) Die();
         else StartCoroutine(InvincibilityCoroutine(knockbackDirection));
     }
@@ -159,6 +165,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         if (isDead) return;
         isDead = true;
+        UIManager.instance.UpdateHealthUI(0);
         if (deathSound != null) audioSource.PlayOneShot(deathSound);
         StartCoroutine(DieSequence());
     }
@@ -250,12 +257,12 @@ public class PlayerController : MonoBehaviour, IDamageable
     private void HandleClimbingAndSwimmingState()
     {
         if (isDashing)
-    {
-        // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
-        // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
-        // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
-        return; 
-    }
+        {
+            // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
+            // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
+            // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
+            return;
+        }
         bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
         bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
         bool isTouchingPoison = playerCollider.IsTouchingLayers(poisonLayer); // [추가]
@@ -290,7 +297,7 @@ public class PlayerController : MonoBehaviour, IDamageable
                     poisonDamageTimer = poisonDamageInterval; // 타이머 초기화
                 }
             }
-            
+
         }
         else
         {
@@ -413,51 +420,52 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     public void OnJump(InputValue value)
-{
-    // 쿨타임 중이거나, 죽었거나, 버튼을 누른 순간이 아니면 점프 불가
-    if (!canJump || isDead || !value.isPressed) return;
+    {
+        // 쿨타임 중이거나, 죽었거나, 버튼을 누른 순간이 아니면 점프 불가
+        if (!canJump || isDead || !value.isPressed) return;
 
-    // 수영 중 점프 (위로 떠오르기)
-    if (isSwimming || isInPoison)
-    {
-        canJump = false; // 점프 후 즉시 쿨타임 시작
-        isWaterJumping = true; // [핵심 수정] 물 점프 상태로 전환합니다.
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
-        StartCoroutine(JumpCooldownCoroutine());
-        return;
-    }
+        // 수영 중 점프 (위로 떠오르기)
+        if (isSwimming || isInPoison)
+        {
+            canJump = false; // 점프 후 즉시 쿨타임 시작
+            isWaterJumping = true; // [핵심 수정] 물 점프 상태로 전환합니다.
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
+            StartCoroutine(JumpCooldownCoroutine());
+            return;
+        }
 
-    // 사다리 타다 점프
-    if (isClimbing)
-    {
-        canJump = false;
-        isClimbing = false;
-        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-        rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, jumpForce);
-        StartCoroutine(JumpCooldownCoroutine());
-        return;
-    }
+        // 사다리 타다 점프
+        if (isClimbing)
+        {
+            canJump = false;
+            isClimbing = false;
+            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+            rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, jumpForce);
+            StartCoroutine(JumpCooldownCoroutine());
+            return;
+        }
 
-    // 지상 점프
-    if (isGrounded && !isDashing && !isCrouching)
-    {
-        canJump = false;
-        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-        rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
-        animator.SetTrigger("jump");
-        StartCoroutine(JumpCooldownCoroutine());
+        // 지상 점프
+        if (isGrounded && !isDashing && !isCrouching)
+        {
+            canJump = false;
+            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
+            animator.SetTrigger("jump");
+            StartCoroutine(JumpCooldownCoroutine());
+        }
+        // 2단 점프
+        else if (!isGrounded && canDoubleJump && !isDashing && !isCrouching)
+        {
+            canJump = false;
+            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            canDoubleJump = false;
+            UIManager.instance.SetDoubleJumpIconActive(false);
+            animator.SetTrigger("jump");
+            StartCoroutine(JumpCooldownCoroutine());
+        }
     }
-    // 2단 점프
-    else if (!isGrounded && canDoubleJump && !isDashing && !isCrouching)
-    {
-        canJump = false;
-        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-        canDoubleJump = false;
-        animator.SetTrigger("jump");
-        StartCoroutine(JumpCooldownCoroutine());
-    }
-}
 
     public void OnDash(InputValue value)
     {
@@ -498,6 +506,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public void ActivateDoubleJump()
     {
         canDoubleJump = true;
+        UIManager.instance.SetDoubleJumpIconActive(true);
     }
 
     private IEnumerator FireCooldownCoroutine()
@@ -513,18 +522,18 @@ public class PlayerController : MonoBehaviour, IDamageable
         isRunning = false;
         isClimbing = false;
         animator.SetBool("isDashing", true);
-        
+
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
-        
+
         rb.linearVelocity = new Vector2(transform.localScale.x > 0 ? dashPower : -dashPower, 0f);
 
         yield return new WaitForSeconds(dashingTime);
-        
+
         rb.gravityScale = originalGravity;
         isDashing = false;
         animator.SetBool("isDashing", false);
-        
+
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
     }
@@ -571,12 +580,63 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb.linearVelocity = Vector2.zero;
         playerInput.enabled = true;
     }
-    
+
     private IEnumerator JumpCooldownCoroutine()
-{
-    // 수영 중이면 swimJumpCooldown을, 아니면 일반 jumpCooldown을 사용
-    float cooldown = isSwimming ? swimJumpCooldown : jumpCooldown;
-    yield return new WaitForSeconds(cooldown);
-    canJump = true;
-}
+    {
+        // 수영 중이면 swimJumpCooldown을, 아니면 일반 jumpCooldown을 사용
+        float cooldown = isSwimming ? swimJumpCooldown : jumpCooldown;
+        yield return new WaitForSeconds(cooldown);
+        canJump = true;
+    }
+
+    public int GetCurrentHealth()
+    {
+        return currentHealth;
+    }
+
+    public bool CanDoubleJump()
+    {
+        return canDoubleJump;
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // 죽고 나서 부활한 경우, 상태를 초기화합니다.
+        if (isDead)
+        {
+            ResetPlayerStateAfterDeath();
+        }
+    }
+
+    private void ResetPlayerStateAfterDeath()
+    {
+        isDead = false;
+        playerInput.enabled = true;
+        GetComponent<Collider2D>().enabled = true;
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        currentHealth = maxHealth;
+        canDoubleJump = false; // 2단 점프 초기화
+
+        // UIManager에게 UI 업데이트를 다시 요청
+        if (UIManager.instance != null)
+        {
+            UIManager.instance.UpdateHealthUI(currentHealth);
+            UIManager.instance.SetDoubleJumpIconActive(canDoubleJump);
+        }
+    }
+
+    // [추가] UIManager가 호출할 수 있도록 상태를 알려주는 함수들
+
+
+    public bool CanDoubleJumpStatus()
+    {
+        return canDoubleJump;
+    }
+    
+    void OnDestroy()
+    {
+        // 오브젝트 파괴 시 이벤트 구독 해제
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
 }
