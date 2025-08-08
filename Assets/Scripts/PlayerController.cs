@@ -249,6 +249,13 @@ public class PlayerController : MonoBehaviour, IDamageable
     #region 핵심 로직 함수들
     private void HandleClimbingAndSwimmingState()
     {
+        if (isDashing)
+    {
+        // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
+        // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
+        // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
+        return; 
+    }
         bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
         bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
         bool isTouchingPoison = playerCollider.IsTouchingLayers(poisonLayer); // [추가]
@@ -267,8 +274,8 @@ public class PlayerController : MonoBehaviour, IDamageable
         {
             rb.gravityScale = originalGravityScale * 0.4f;
             rb.linearDamping = 3f;
-            
-            if(isSwimming)
+
+            if (isSwimming)
             {
                 swimTimeRemaining -= Time.deltaTime;
                 if (swimTimeRemaining <= 0) Die();
@@ -283,6 +290,7 @@ public class PlayerController : MonoBehaviour, IDamageable
                     poisonDamageTimer = poisonDamageInterval; // 타이머 초기화
                 }
             }
+            
         }
         else
         {
@@ -505,18 +513,18 @@ public class PlayerController : MonoBehaviour, IDamageable
         isRunning = false;
         isClimbing = false;
         animator.SetBool("isDashing", true);
-
+        
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0f;
-
+        
         rb.linearVelocity = new Vector2(transform.localScale.x > 0 ? dashPower : -dashPower, 0f);
 
         yield return new WaitForSeconds(dashingTime);
-
+        
         rb.gravityScale = originalGravity;
         isDashing = false;
         animator.SetBool("isDashing", false);
-
+        
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
     }
