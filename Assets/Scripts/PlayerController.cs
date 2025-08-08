@@ -16,12 +16,14 @@ public class PlayerController : MonoBehaviour, IDamageable
     [Header("상태")]
     public int maxHealth = 3;
 
+
     [Header("움직임")]
     public float moveSpeed = 5f;
     public float runSpeed = 8f;
     public float jumpForce = 12f;
     public float knockbackForce = 10f;
     public float invincibilityDuration = 1.5f;
+    public float jumpCooldown = 0.2f; // [추가] 일반 점프 쿨타임
 
     [Header("대쉬")]
     public float dashPower = 24f;
@@ -51,6 +53,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public float swimJumpForce = 8f;
     public float maxSwimTime = 5f;
     public LayerMask waterLayer;
+    public float swimJumpCooldown = 1f; // [추가] 수중 점프 쿨타임
     #endregion
 
     #region Private 변수
@@ -63,6 +66,8 @@ public class PlayerController : MonoBehaviour, IDamageable
     private Collider2D playerCollider;
 
     // --- 상태 변수 ---
+    private bool canJump = true; // [추가] 현재 점프 가능한지 여부
+    private bool isWaterJumping = false;
     private Vector2 moveInput;
     private Vector2 originalScale;
     private float originalGravityScale;
@@ -153,29 +158,29 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     private IEnumerator DieSequence()
-{
-    // 1. 모든 입력을 즉시 중단합니다.
-    playerInput.enabled = false;
+    {
+        // 1. 모든 입력을 즉시 중단합니다.
+        playerInput.enabled = false;
 
-    // 2. 다른 오브젝트와 충돌하지 않도록 콜라이더를 비활성화합니다.
-    GetComponent<Collider2D>().enabled = false;
+        // 2. 다른 오브젝트와 충돌하지 않도록 콜라이더를 비활성화합니다.
+        GetComponent<Collider2D>().enabled = false;
 
-    // 3. [핵심 수정] 물리적 움직임을 완전히 초기화합니다.
-    rb.linearVelocity = Vector2.zero;
-    rb.angularVelocity = 0f;
-    rb.bodyType = RigidbodyType2D.Static; // 모든 물리 효과를 완전히 끔
+        // 3. [핵심 수정] 물리적 움직임을 완전히 초기화합니다.
+        rb.linearVelocity = Vector2.zero;
+        rb.angularVelocity = 0f;
+        rb.bodyType = RigidbodyType2D.Static; // 모든 물리 효과를 완전히 끔
 
-    // 물리 상태가 업데이트될 때까지 한 프레임 기다립니다.
-    yield return new WaitForFixedUpdate();
+        // 물리 상태가 업데이트될 때까지 한 프레임 기다립니다.
+        yield return new WaitForFixedUpdate();
 
-    // 4. 다시 물리 효과를 켜서 튀어 오를 준비를 합니다.
-    rb.bodyType = RigidbodyType2D.Dynamic;
-    rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse); // 위로 튀어 오릅니다.
+        // 4. 다시 물리 효과를 켜서 튀어 오를 준비를 합니다.
+        rb.bodyType = RigidbodyType2D.Dynamic;
+        rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse); // 위로 튀어 오릅니다.
 
-    // 5. 씬 재시작 및 오브젝트 파괴를 예약합니다.
-    GameManager.instance.RestartSceneWithDelay(1.5f);
-    Destroy(gameObject, 1.5f);
-}
+        // 5. 씬 재시작 및 오브젝트 파괴를 예약합니다.
+        GameManager.instance.RestartSceneWithDelay(1.5f);
+        Destroy(gameObject, 1.5f);
+    }
 
     private IEnumerator InvincibilityCoroutine(Vector2 knockbackDirection)
     {
@@ -241,7 +246,6 @@ public class PlayerController : MonoBehaviour, IDamageable
         bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
         bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
 
-        // 수영 상태 결정
         if (isTouchingWater && !isSwimming)
         {
             isSwimming = true;
@@ -250,10 +254,10 @@ public class PlayerController : MonoBehaviour, IDamageable
         else if (!isTouchingWater && isSwimming)
         {
             isSwimming = false;
+            isWaterJumping = false; // [추가] 물에서 나올 때 점프 상태 초기화
             swimTimeRemaining = maxSwimTime;
         }
 
-        // 사다리 타기 상태 결정
         if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
         {
             isClimbing = true;
@@ -264,21 +268,10 @@ public class PlayerController : MonoBehaviour, IDamageable
             isClimbing = false;
         }
 
-        // [수정된 핵심 로직]
-        // 대쉬 상태를 최우선으로 확인하여, 대쉬 중에는 이 함수가 물리 상태를 변경하지 못하도록 합니다.
-        if (isDashing)
-        {
-            // 대쉬 중에는 Dash() 코루틴이 중력을 0으로 제어하고 있으므로,
-            // 이 함수에서는 아무런 물리 관련 작업을 수행하지 않고 즉시 반환합니다.
-            // 이렇게 함으로써 Dash() 코루틴의 rb.gravityScale = 0f 설정이 유지됩니다.
-            return;
-        }
-
-        // 상태에 따른 물리 효과 적용
         if (isClimbing)
         {
             rb.gravityScale = 0f;
-            rb.linearDamping = 0f; // 일관성을 위해 사다리에서도 Damping 초기화
+            rb.linearDamping = 0f;
         }
         else if (isSwimming)
         {
@@ -290,7 +283,6 @@ public class PlayerController : MonoBehaviour, IDamageable
         }
         else
         {
-            // 기본 상태: 등반, 수영, 대쉬가 아닐 때만 실행됩니다.
             rb.gravityScale = originalGravityScale;
             rb.linearDamping = 0f;
         }
@@ -350,7 +342,22 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     private void HandleSwimmingMovement()
     {
-        rb.linearVelocity = moveInput * swimSpeed;
+        // 물에서 점프하여 솟아오르는 중일 때
+        if (isWaterJumping)
+        {
+            // Y축 속도가 0 이하로 떨어지면 (정점에 도달했거나 하강 중이면) 점프 상태 해제
+            if (rb.linearVelocity.y <= 0)
+            {
+                isWaterJumping = false;
+            }
+            // 솟아오르는 동안에는 X축(좌우) 이동만 허용하고, Y축 속도는 그대로 둠
+            rb.linearVelocity = new Vector2(moveInput.x * swimSpeed, rb.linearVelocity.y);
+        }
+        else
+        {
+            // 평소 수영 상태에서는 모든 방향으로 자유롭게 이동
+            rb.linearVelocity = moveInput * swimSpeed;
+        }
     }
 
     private bool CanStandUp()
@@ -393,37 +400,51 @@ public class PlayerController : MonoBehaviour, IDamageable
     }
 
     public void OnJump(InputValue value)
+{
+    // 쿨타임 중이거나, 죽었거나, 버튼을 누른 순간이 아니면 점프 불가
+    if (!canJump || isDead || !value.isPressed) return;
+
+    // 수영 중 점프 (위로 떠오르기)
+    if (isSwimming)
     {
-        if (isDead || !value.isPressed) return;
-
-        if (isSwimming)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
-            return;
-        }
-
-        if (isClimbing)
-        {
-            isClimbing = false;
-            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-            rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, jumpForce);
-            return;
-        }
-
-        if (isGrounded && !isDashing && !isCrouching)
-        {
-            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
-            animator.SetTrigger("jump");
-        }
-        else if (!isGrounded && canDoubleJump && !isDashing && !isCrouching)
-        {
-            if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-            canDoubleJump = false;
-            animator.SetTrigger("jump");
-        }
+        canJump = false; // 점프 후 즉시 쿨타임 시작
+        isWaterJumping = true; // [핵심 수정] 물 점프 상태로 전환합니다.
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, swimJumpForce);
+        StartCoroutine(JumpCooldownCoroutine());
+        return;
     }
+
+    // 사다리 타다 점프
+    if (isClimbing)
+    {
+        canJump = false;
+        isClimbing = false;
+        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+        rb.linearVelocity = new Vector2(moveInput.x * moveSpeed, jumpForce);
+        StartCoroutine(JumpCooldownCoroutine());
+        return;
+    }
+
+    // 지상 점프
+    if (isGrounded && !isDashing && !isCrouching)
+    {
+        canJump = false;
+        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+        rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
+        animator.SetTrigger("jump");
+        StartCoroutine(JumpCooldownCoroutine());
+    }
+    // 2단 점프
+    else if (!isGrounded && canDoubleJump && !isDashing && !isCrouching)
+    {
+        canJump = false;
+        if (jumpSound != null) audioSource.PlayOneShot(jumpSound);
+        rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+        canDoubleJump = false;
+        animator.SetTrigger("jump");
+        StartCoroutine(JumpCooldownCoroutine());
+    }
+}
 
     public void OnDash(InputValue value)
     {
@@ -523,7 +544,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         isForceMoving = true;
         playerInput.enabled = false;
-        
+
         transform.position = new Vector3(transform.position.x, targetY, transform.position.z);
         float moveDirection = 1f;
 
@@ -537,4 +558,12 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb.linearVelocity = Vector2.zero;
         playerInput.enabled = true;
     }
+    
+    private IEnumerator JumpCooldownCoroutine()
+{
+    // 수영 중이면 swimJumpCooldown을, 아니면 일반 jumpCooldown을 사용
+    float cooldown = isSwimming ? swimJumpCooldown : jumpCooldown;
+    yield return new WaitForSeconds(cooldown);
+    canJump = true;
+}
 }
