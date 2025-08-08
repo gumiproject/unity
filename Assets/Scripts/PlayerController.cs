@@ -54,6 +54,10 @@ public class PlayerController : MonoBehaviour, IDamageable
     public float maxSwimTime = 5f;
     public LayerMask waterLayer;
     public float swimJumpCooldown = 1f; // [추가] 수중 점프 쿨타임
+
+    [Header("독 설정")]
+    public float poisonDamageInterval = 1f; // 1초마다 데미지
+    public LayerMask poisonLayer; // [추가] 독 지형 레이어
     #endregion
 
     #region Private 변수
@@ -66,6 +70,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private Collider2D playerCollider;
 
     // --- 상태 변수 ---
+     private float poisonDamageTimer; // [추가] 독 데미지 타이머
     private bool canJump = true; // [추가] 현재 점프 가능한지 여부
     private bool isWaterJumping = false;
     private Vector2 moveInput;
@@ -85,6 +90,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private bool isCrouching = false;
     private bool isClimbing = false;
     private bool isSwimming = false;
+    private bool isInPoison = false; // [추가] 독 지형에 있는지 여부
     private bool isFacingRight = true;
     private float lastInputTime = 0f;
     private int lastDirection = 0;
@@ -123,7 +129,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
         HandleClimbingAndSwimmingState();
 
-        if (isDead || isDashing || isInvincible || isClimbing || isSwimming || isForceMoving) return;
+        if (isDead || isDashing || isInvincible || isClimbing || isSwimming || isForceMoving || isInPoison) return;
 
         HandleCrouchState();
         HandleFacingDirection();
@@ -135,7 +141,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         if (isDead || isDashing || isForceMoving) return;
 
         if (isClimbing) HandleClimbingMovement();
-        else if (isSwimming) HandleSwimmingMovement();
+        else if (isSwimming || isInPoison) HandleSwimmingMovement();
         else HandleNormalMovement();
     }
     #endregion
@@ -245,46 +251,45 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         bool isTouchingClimbable = playerCollider.IsTouchingLayers(LayerMask.GetMask("Climbable"));
         bool isTouchingWater = playerCollider.IsTouchingLayers(waterLayer);
+        bool isTouchingPoison = playerCollider.IsTouchingLayers(poisonLayer); // [추가]
 
-        if (isTouchingWater && !isSwimming)
-        {
-            isSwimming = true;
-            isClimbing = false;
-        }
-        else if (!isTouchingWater && isSwimming)
-        {
-            isSwimming = false;
-            isWaterJumping = false; // [추가] 물에서 나올 때 점프 상태 초기화
-            swimTimeRemaining = maxSwimTime;
-        }
-
-        if (!isSwimming && isTouchingClimbable && Mathf.Abs(moveInput.y) > 0.1f)
-        {
-            isClimbing = true;
-        }
-
-        if (!isTouchingClimbable && isClimbing)
-        {
-            isClimbing = false;
-        }
+        // 상태 결정 (우선순위: 독 > 물 > 사다리)
+        isInPoison = isTouchingPoison;
+        isSwimming = isTouchingWater && !isInPoison;
+        isClimbing = isTouchingClimbable && !isSwimming && !isInPoison;
 
         if (isClimbing)
         {
             rb.gravityScale = 0f;
             rb.linearDamping = 0f;
         }
-        else if (isSwimming)
+        else if (isSwimming || isInPoison) // [수정] 독에서도 수영과 같은 물리 효과
         {
             rb.gravityScale = originalGravityScale * 0.4f;
             rb.linearDamping = 3f;
-
-            swimTimeRemaining -= Time.deltaTime;
-            if (swimTimeRemaining <= 0) Die();
+            
+            if(isSwimming)
+            {
+                swimTimeRemaining -= Time.deltaTime;
+                if (swimTimeRemaining <= 0) Die();
+            }
+            else if (isInPoison)
+            {
+                // 독 데미지 처리
+                poisonDamageTimer -= Time.deltaTime;
+                if (poisonDamageTimer <= 0)
+                {
+                    TakeDamage(Vector2.zero); // 넉백 없이 데미지만 받음
+                    poisonDamageTimer = poisonDamageInterval; // 타이머 초기화
+                }
+            }
         }
         else
         {
             rb.gravityScale = originalGravityScale;
             rb.linearDamping = 0f;
+            swimTimeRemaining = maxSwimTime; // 물에서 나오면 잠수 시간 초기화
+            poisonDamageTimer = 0; // 독에서 나오면 데미지 타이머 초기화
         }
 
         Physics2D.IgnoreLayerCollision(gameObject.layer, LayerMask.NameToLayer("Ground"), isClimbing);
@@ -405,7 +410,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     if (!canJump || isDead || !value.isPressed) return;
 
     // 수영 중 점프 (위로 떠오르기)
-    if (isSwimming)
+    if (isSwimming || isInPoison)
     {
         canJump = false; // 점프 후 즉시 쿨타임 시작
         isWaterJumping = true; // [핵심 수정] 물 점프 상태로 전환합니다.
@@ -454,7 +459,7 @@ public class PlayerController : MonoBehaviour, IDamageable
 
     public void OnFire(InputValue value)
     {
-        if (!canFire || isDead || isCrouching || isDashing || isClimbing || isSwimming || !value.isPressed)
+        if (!canFire || isDead || isCrouching || isDashing || isClimbing || isSwimming || !value.isPressed || isInPoison)
         {
             return;
         }
