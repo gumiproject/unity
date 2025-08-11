@@ -64,7 +64,7 @@ public class MonsterAI : MonoBehaviour
         }
     }
 
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnCollisionStay2D(Collision2D collision)
     {
         // 부딪힌 오브젝트의 태그가 "Player"인지 확인합니다.
         if (collision.gameObject.CompareTag("Player"))
