@@ -61,7 +61,7 @@ public class WaterMonsterAI : MonoBehaviour
     }
 
     // 다른 콜라이더와 '물리적 충돌'이 일어났을 때
-    private void OnCollisionStay2D(Collision2D collision)
+    private void OnCollisionEnter2D(Collision2D collision)
     {
         // 물속에 있고, 부딪힌 대상이 "Water" 레이어가 아니라면 (벽, 땅 등)
         if (isInWater && collision.gameObject.layer != LayerMask.NameToLayer("Water"))
