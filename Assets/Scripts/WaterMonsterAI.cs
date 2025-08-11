@@ -6,6 +6,7 @@ public class WaterMonsterAI : MonoBehaviour
     public float swimSpeed = 2f;
     [Tooltip("5초마다 방향을 바꿉니다.")]
     public float turnInterval = 5f;
+    public int moveDirection = 1;
 
     [Header("헤엄 효과 설정")]
     [Tooltip("위아래로 움직이는 속도")]
@@ -16,7 +17,6 @@ public class WaterMonsterAI : MonoBehaviour
     // --- Private 변수 ---
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
-    private int moveDirection = 1;
     private float turnTimer;
     private float initialYPosition;
     private bool isInWater = false; // [추가] 물 속에 있는지 확인하는 상태 변수
@@ -61,7 +61,7 @@ public class WaterMonsterAI : MonoBehaviour
     }
 
     // 다른 콜라이더와 '물리적 충돌'이 일어났을 때
-    private void OnCollisionEnter2D(Collision2D collision)
+    private void OnCollisionStay2D(Collision2D collision)
     {
         // 물속에 있고, 부딪힌 대상이 "Water" 레이어가 아니라면 (벽, 땅 등)
         if (isInWater && collision.gameObject.layer != LayerMask.NameToLayer("Water"))

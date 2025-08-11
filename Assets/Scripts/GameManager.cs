@@ -6,6 +6,8 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
 
+    public int deathCount = 0;
+    public int maxdeathCount = 3; // 최대 사망 횟수
     private void Awake()
     {
         if (instance == null)
@@ -27,11 +29,16 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator RestartCoroutine(float delay)
     {
+        deathCount++;
         // 1. 요청받은 시간(1초)만큼 기다립니다.
         yield return new WaitForSeconds(delay);
-
-        // 2. 현재 씬을 다시 로드합니다.
-        Debug.Log("게임 매니저가 씬을 재시작합니다.");
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        Debug.Log("현재 사망 횟수: " + deathCount);
+        if (deathCount > maxdeathCount)
+        {
+            SceneManager.LoadScene("Start");
+            Destroy(gameObject);
+        }
+        else
+            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 }

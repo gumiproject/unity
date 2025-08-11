@@ -12,6 +12,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public AudioClip deathSound;
     public AudioClip jumpSound;
     public AudioClip fireSound;
+public AudioClip damageSound;
 
     [Header("상태")]
     public int maxHealth = 3;
@@ -95,6 +96,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private float lastInputTime = 0f;
     private int lastDirection = 0;
     private bool isForceMoving = false;
+private int deathCount = 0; // [추가] 사망 횟수 카운트
     #endregion
 
     #region Unity 생명주기 함수 (Awake, Update, FixedUpdate)
@@ -156,6 +158,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     {
         if (isInvincible || isDead) return;
         currentHealth--;
+        if (damageSound != null) audioSource.PlayOneShot(damageSound);
         UIManager.instance.UpdateHealthUI(currentHealth);
         if (currentHealth <= 0) Die();
         else StartCoroutine(InvincibilityCoroutine(knockbackDirection));
@@ -191,8 +194,15 @@ public class PlayerController : MonoBehaviour, IDamageable
         rb.AddForce(Vector2.up * jumpForce * 0.7f, ForceMode2D.Impulse); // 위로 튀어 오릅니다.
 
         // 5. 씬 재시작 및 오브젝트 파괴를 예약합니다.
-        GameManager.instance.RestartSceneWithDelay(1.5f);
-        Destroy(gameObject, 1.5f);
+        if (deathCount > 3)
+        {
+            Destroy(gameObject, 1.5f);
+        }
+        else
+        {
+            GameManager.instance.RestartSceneWithDelay(1.5f);
+            Destroy(gameObject, 1.5f);
+        }
     }
 
     private IEnumerator InvincibilityCoroutine(Vector2 knockbackDirection)
