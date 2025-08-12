@@ -83,6 +83,12 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/1-10_future.unity
     guid: b740c7d9e8bc1074ca440732af120a49
+  - enabled: 1
+    path: Assets/Scenes/1-11_future.unity
+    guid: a252bf755cf0000448ac000da4bc7350
+  - enabled: 1
+    path: Assets/Scenes/1-11_post.unity
+    guid: a478f33e243f5ff4aa2d1a03a0781b82
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
