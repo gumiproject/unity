@@ -5,6 +5,7 @@ using UnityEngine.SceneManagement;
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
+    public string respawnSceneName; // [추가] 리스폰 시 돌아갈 씬
 
     public int deathCount = 0;
     public int maxdeathCount = 3; // 최대 사망 횟수
@@ -39,6 +40,6 @@ public class GameManager : MonoBehaviour
             Destroy(gameObject);
         }
         else
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            SceneManager.LoadScene(respawnSceneName);
     }
 }
