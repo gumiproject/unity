@@ -102,6 +102,8 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
     #region Unity 생명주기 함수 (Awake, Update, FixedUpdate)
     void Awake()
     {
+        
+        
         if (instance == null)
         {
             instance = this.gameObject;
@@ -125,9 +127,20 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
         currentHealth = maxHealth;
         swimTimeRemaining = maxSwimTime;
 
-        UIManager.instance.UpdateHealthUI(currentHealth);
-        // [추가] 게임 시작 시 2단 점프 아이콘을 비활성화
-        UIManager.instance.SetDoubleJumpIconActive(false);
+         StartCoroutine(InitializeUIWithDelay());
+    }
+
+    private IEnumerator InitializeUIWithDelay()
+    {
+        // 0.1초 기다립니다.
+        yield return new WaitForSeconds(0.1f);
+
+        // UIManager가 준비되었는지 확인 후 UI 업데이트
+        if (UIManager.instance != null)
+        {
+            UIManager.instance.UpdateHealthUI(currentHealth);
+            UIManager.instance.SetDoubleJumpIconActive(false);
+        }
     }
 
     void Update()

@@ -34,6 +34,11 @@ public class GoalFlag : MonoBehaviour
                 }
             }
 
+             if (GameManager.instance != null)
+        {
+            Destroy(GameManager.instance.gameObject);
+        }
+
             // 다음 씬 로드
             SceneManager.LoadScene(nextSceneName);
         }
