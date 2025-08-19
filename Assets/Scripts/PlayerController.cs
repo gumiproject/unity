@@ -12,7 +12,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     public AudioClip deathSound;
     public AudioClip jumpSound;
     public AudioClip fireSound;
-public AudioClip damageSound;
+    public AudioClip damageSound;
 
     [Header("상태")]
     public int maxHealth = 3;
@@ -30,6 +30,7 @@ public AudioClip damageSound;
     public float dashPower = 24f;
     public float dashingTime = 0.2f;
     public float dashingCooldown = 1f;
+    private float oriDashingCooldown;
 
     [Header("엎드리기")]
     public float crouchSpeed = 2.5f;
@@ -96,14 +97,20 @@ public AudioClip damageSound;
     private float lastInputTime = 0f;
     private int lastDirection = 0;
     private bool isForceMoving = false;
-private int deathCount = 0; // [추가] 사망 횟수 카운트
+    private bool isDashPowerUpActive = false; // 대시 강화 아이템 효과가 활성화되었는지 여부
+    private float dashPowerUpStartTime = 0f;  // 대시 강화 아이템을 먹은 시간
+    private int deathCount = 0; // [추가] 사망 횟수 카운트
+
+    private int dashPowerUpState = 0;
+private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
     #endregion
+
 
     #region Unity 생명주기 함수 (Awake, Update, FixedUpdate)
     void Awake()
     {
-        
-        
+
+
         if (instance == null)
         {
             instance = this.gameObject;
@@ -126,11 +133,12 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
         originalGravityScale = rb.gravityScale;
         currentHealth = maxHealth;
         swimTimeRemaining = maxSwimTime;
- if (GameManager.instance != null && GameManager.instance.isRespawnPointSet)
-    {
-        transform.position = GameManager.instance.respawnPoint;
-    }
-         StartCoroutine(InitializeUIWithDelay());
+        oriDashingCooldown = dashingCooldown;
+        if (GameManager.instance != null && GameManager.instance.isRespawnPointSet)
+        {
+            transform.position = GameManager.instance.respawnPoint;
+        }
+        StartCoroutine(InitializeUIWithDelay());
     }
 
     private IEnumerator InitializeUIWithDelay()
@@ -559,10 +567,48 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
         rb.gravityScale = originalGravity;
         isDashing = false;
         animator.SetBool("isDashing", false);
+        // --- 새로운 동적 쿨타임 판정 로직 ---
+
+    // [상태 1] 아이템 먹고 "첫 번째 대시"를 사용한 경우
+    if (dashPowerUpState == 1)
+    {
+        // 2단계: '두 번째 대시'를 기다리는 상태로 변경
+        dashPowerUpState = 2;
+        // 시간 측정을 위해 첫 대시 사용 시간을 기록
+        firstDashTime = Time.time;
+        // 두 번째 대시도 즉시 사용할 수 있도록 쿨타임은 0으로 유지
+        Debug.Log("첫 강화 대시 사용! 두 번째 대시 타이머가 시작됩니다.");
+    }
+    // [상태 2] 첫 대시 후 "두 번째 대시"를 사용한 경우 (결판의 시간)
+    else if (dashPowerUpState == 2)
+    {
+        // 첫 대시와 두 번째 대시 사이의 시간 간격을 계산
+        float timeBetweenDashes = Time.time - firstDashTime;
+
+        // [조건 분기 1] 시간 간격이 원래 쿨타임보다 짧았다면 (빠르게 연계)
+        if (timeBetweenDashes <= oriDashingCooldown)
+        {
+            // 쿨타임을 원래대로 복구
+            dashingCooldown = oriDashingCooldown;
+            Debug.Log("빠른 연계 성공! 대시 쿨타임이 원래대로 돌아옵니다.");
+        }
+        // [조건 분기 2] 시간 간격이 원래 쿨타임보다 길었다면 (느리게 사용)
+        else
+        {
+            // 쿨타임 0초 유지를 위해 값을 그대로 둡니다.
+            Debug.Log("느린 연계! 대시 쿨타임 0초 효과가 유지됩니다.");
+        }
+        
+        // 모든 시퀀스가 끝났으므로 일반 상태로 복귀
+        dashPowerUpState = 0;
+    }
 
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
+ 
     }
+
+
     #endregion
 
     #region 디버깅용 Gizmo
@@ -625,7 +671,7 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
         return canDoubleJump;
     }
 
-     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         // [수정] 씬 로드 시 체크포인트 위치로 이동하는 로직
         if (GameManager.instance != null && scene.name == GameManager.instance.GetRespawnSceneName())
@@ -670,11 +716,20 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
     {
         return canDoubleJump;
     }
-    
+
     void OnDestroy()
     {
         // 오브젝트 파괴 시 이벤트 구독 해제
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
+
+public void ActivateDoubleDash()
+{
+    // 1단계: 아이템을 먹고 '첫 번째 대시'를 기다리는 상태로 변경
+    dashPowerUpState = 1;
+    // 첫 번째 대시는 즉시 사용할 수 있도록 쿨타임을 0으로 설정
+    dashingCooldown = 0f;
+    Debug.Log("대시 강화 시퀀스 시작! 첫 번째 대시는 쿨타임이 없습니다.");
+}
 }
