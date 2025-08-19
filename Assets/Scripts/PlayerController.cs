@@ -126,7 +126,10 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
         originalGravityScale = rb.gravityScale;
         currentHealth = maxHealth;
         swimTimeRemaining = maxSwimTime;
-
+ if (GameManager.instance != null && GameManager.instance.isRespawnPointSet)
+    {
+        transform.position = GameManager.instance.respawnPoint;
+    }
          StartCoroutine(InitializeUIWithDelay());
     }
 
@@ -622,14 +625,26 @@ private int deathCount = 0; // [추가] 사망 횟수 카운트
         return canDoubleJump;
     }
 
-    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        // [수정] 씬 로드 시 체크포인트 위치로 이동하는 로직
+        if (GameManager.instance != null && scene.name == GameManager.instance.GetRespawnSceneName())
+        {
+            // GameManager에 저장된 체크포인트가 있다면 해당 위치로 플레이어를 이동시킵니다.
+            if (GameManager.instance.isRespawnPointSet)
+            {
+                transform.position = GameManager.instance.respawnPoint;
+                Debug.Log("저장된 체크포인트에서 부활합니다.");
+            }
+        }
+
         // 죽고 나서 부활한 경우, 상태를 초기화합니다.
         if (isDead)
         {
             ResetPlayerStateAfterDeath();
         }
     }
+
 
     private void ResetPlayerStateAfterDeath()
     {
