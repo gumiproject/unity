@@ -569,38 +569,40 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
         animator.SetBool("isDashing", false);
         // --- 새로운 동적 쿨타임 판정 로직 ---
 
-    // [상태 1] 아이템 먹고 "첫 번째 대시"를 사용한 경우
-    if (dashPowerUpState == 1)
-    {
-        // 2단계: '두 번째 대시'를 기다리는 상태로 변경
-        dashPowerUpState = 2;
-        // 시간 측정을 위해 첫 대시 사용 시간을 기록
-        firstDashTime = Time.time;
-        // 두 번째 대시도 즉시 사용할 수 있도록 쿨타임은 0으로 유지
-        Debug.Log("첫 강화 대시 사용! 두 번째 대시 타이머가 시작됩니다.");
-    }
-    // [상태 2] 첫 대시 후 "두 번째 대시"를 사용한 경우 (결판의 시간)
-    else if (dashPowerUpState == 2)
-    {
-        // 첫 대시와 두 번째 대시 사이의 시간 간격을 계산
-        float timeBetweenDashes = Time.time - firstDashTime;
+        // [상태 1] 아이템 먹고 "첫 번째 대시"를 사용한 경우
+        if (dashPowerUpState == 1)
+        {
+            // 2단계: '두 번째 대시'를 기다리는 상태로 변경
+            dashPowerUpState = 2;
+            // 시간 측정을 위해 첫 대시 사용 시간을 기록
+            firstDashTime = Time.time;
+            // 두 번째 대시도 즉시 사용할 수 있도록 쿨타임은 0으로 유지
+            Debug.Log("첫 강화 대시 사용! 두 번째 대시 타이머가 시작됩니다.");
+        }
+        // [상태 2] 첫 대시 후 "두 번째 대시"를 사용한 경우 (결판의 시간)
+        else if (dashPowerUpState == 2)
+        {
+            // 첫 대시와 두 번째 대시 사이의 시간 간격을 계산
+            float timeBetweenDashes = Time.time - firstDashTime;
 
-        // [조건 분기 1] 시간 간격이 원래 쿨타임보다 짧았다면 (빠르게 연계)
-        if (timeBetweenDashes <= oriDashingCooldown)
-        {
-            // 쿨타임을 원래대로 복구
-            dashingCooldown = oriDashingCooldown;
-            Debug.Log("빠른 연계 성공! 대시 쿨타임이 원래대로 돌아옵니다.");
-        }
-        // [조건 분기 2] 시간 간격이 원래 쿨타임보다 길었다면 (느리게 사용)
-        else
-        {
-            // 쿨타임 0초 유지를 위해 값을 그대로 둡니다.
-            Debug.Log("느린 연계! 대시 쿨타임 0초 효과가 유지됩니다.");
-        }
-        
-        // 모든 시퀀스가 끝났으므로 일반 상태로 복귀
-        dashPowerUpState = 0;
+            // [조건 분기 1] 시간 간격이 원래 쿨타임보다 짧았다면 (빠르게 연계)
+            if (timeBetweenDashes <= oriDashingCooldown)
+            {
+                // 쿨타임을 원래대로 복구
+                dashingCooldown = oriDashingCooldown;
+                Debug.Log("빠른 연계 성공! 대시 쿨타임이 원래대로 돌아옵니다.");
+                 UIManager.instance.SetDoubleDashIconActive(false);
+            }
+            // [조건 분기 2] 시간 간격이 원래 쿨타임보다 길었다면 (느리게 사용)
+            else
+            {
+                // 쿨타임 0초 유지를 위해 값을 그대로 둡니다.
+                Debug.Log("느린 연계! 대시 쿨타임 0초 효과가 유지됩니다.");
+            }
+
+            // 모든 시퀀스가 끝났으므로 일반 상태로 복귀
+            dashPowerUpState = 0;
+         UIManager.instance.SetDoubleDashIconActive(false);
     }
 
         yield return new WaitForSeconds(dashingCooldown);
@@ -706,6 +708,7 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
         {
             UIManager.instance.UpdateHealthUI(currentHealth);
             UIManager.instance.SetDoubleJumpIconActive(canDoubleJump);
+             UIManager.instance.SetDoubleDashIconActive(false);
         }
     }
 
@@ -717,6 +720,12 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
         return canDoubleJump;
     }
 
+    public bool HasDashPowerUp()
+{
+    // 대시 강화 시퀀스가 진행 중일 때 true를 반환
+    return dashPowerUpState > 0;
+}
+
     void OnDestroy()
     {
         // 오브젝트 파괴 시 이벤트 구독 해제
@@ -726,8 +735,9 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
 
 public void ActivateDoubleDash()
 {
+     UIManager.instance.SetDoubleDashIconActive(true);
     // 1단계: 아이템을 먹고 '첫 번째 대시'를 기다리는 상태로 변경
-    dashPowerUpState = 1;
+        dashPowerUpState = 1;
     // 첫 번째 대시는 즉시 사용할 수 있도록 쿨타임을 0으로 설정
     dashingCooldown = 0f;
     Debug.Log("대시 강화 시퀀스 시작! 첫 번째 대시는 쿨타임이 없습니다.");
