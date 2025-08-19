@@ -1,20 +1,30 @@
-using System.Collections;
+// GameManager.cs
+
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
-    public string respawnSceneName; // [추가] 리스폰 시 돌아갈 씬
+
+    // [수정] respawnSceneName은 public일 필요가 없어졌습니다.
+    public string respawnSceneName; 
+    
+    // [추가] 리스폰 위치와 체크포인트 저장 여부 변수
+    public Vector3 respawnPoint { get; private set; }
+    public bool isRespawnPointSet { get; private set; } = false;
 
     public int deathCount = 0;
-    public int maxdeathCount = 3; // 최대 사망 횟수
+    public int maxdeathCount = 3;
+
     private void Awake()
     {
         if (instance == null)
         {
             instance = this;
             DontDestroyOnLoad(gameObject);
+
         }
         else
         {
@@ -22,7 +32,20 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // 플레이어가 호출할 함수: "delay"초 후에 씬을 재시작함
+    // [추가] 체크포인트가 호출할 함수
+    public void UpdateRespawnPoint(Vector3 newPosition, string sceneName)
+    {
+        respawnPoint = newPosition;
+        respawnSceneName = sceneName;
+        isRespawnPointSet = true;
+        Debug.Log("체크포인트 저장 완료! 씬: " + sceneName + ", 위치: " + newPosition);
+    }
+    
+    public string GetRespawnSceneName()
+    {
+        return respawnSceneName;
+    }
+
     public void RestartSceneWithDelay(float delay)
     {
         StartCoroutine(RestartCoroutine(delay));
@@ -31,15 +54,19 @@ public class GameManager : MonoBehaviour
     private IEnumerator RestartCoroutine(float delay)
     {
         deathCount++;
-        // 1. 요청받은 시간(1초)만큼 기다립니다.
         yield return new WaitForSeconds(delay);
+
         Debug.Log("현재 사망 횟수: " + deathCount);
-        if (deathCount > maxdeathCount)
+        if (deathCount >= maxdeathCount)
         {
+            // [수정] 게임 오버 시 DontDestroyOnLoad 해제 및 상태 초기화 고려
             SceneManager.LoadScene("Start");
-            Destroy(gameObject);
+            Destroy(gameObject); // GameManager도 파괴
         }
         else
+        {
+            // [수정] 저장된 respawnSceneName으로 씬 로드
             SceneManager.LoadScene(respawnSceneName);
+        }
     }
 }
