@@ -20,24 +20,25 @@ public class MonsterAI : MonoBehaviour
     }
 
     void FixedUpdate()
+{
+    // 1. 앞에 땅이 있는지 확인 (절벽 감지) - OverlapCircle 방식으로 변경
+    Vector2 groundCheckPos = groundCheck.position;
+    // groundCheckPos 위치에 반지름 0.1f의 원을 그려 땅 레이어와 겹치는지 확인
+    Collider2D groundHit = Physics2D.OverlapCircle(groundCheckPos, 0.1f, groundLayer);
+
+    // 2. 진행 방향에 벽이 있는지 확인 (벽 감지)
+    Vector2 wallCheckPos = (Vector2)transform.position + new Vector2(moveDirection * 0.5f, 0);
+    RaycastHit2D wallHit = Physics2D.Raycast(wallCheckPos, new Vector2(moveDirection, 0), 0.1f, groundLayer);
+
+    // 만약 앞에 땅이 없거나(절벽), 앞에 벽이 있다면 방향 전환
+    if (groundHit == null || wallHit.collider != null)
     {
-        // 1. 앞에 땅이 있는지 확인 (절벽 감지)
-        Vector2 groundCheckPos = groundCheck.position;
-        RaycastHit2D groundHit = Physics2D.Raycast(groundCheckPos, Vector2.down, groundCheckDistance, groundLayer);
-
-        // 2. 진행 방향에 벽이 있는지 확인 (벽 감지)
-        Vector2 wallCheckPos = (Vector2)transform.position + new Vector2(moveDirection * 0.5f, 0);
-        RaycastHit2D wallHit = Physics2D.Raycast(wallCheckPos, new Vector2(moveDirection, 0), 0.1f, groundLayer);
-
-        // 만약 앞에 땅이 없거나(절벽), 앞에 벽이 있다면 방향 전환
-        if (groundHit.collider == null || wallHit.collider != null)
-        {
-            Flip();
-        }
-
-        // 3. 결정된 방향으로 몬스터 이동
-        rb.linearVelocity = new Vector2(moveDirection * moveSpeed, rb.linearVelocity.y);
+        Flip();
     }
+
+    // 3. 결정된 방향으로 몬스터 이동
+    rb.linearVelocity = new Vector2(moveDirection * moveSpeed, rb.linearVelocity.y);
+}
 
     // 방향을 바꾸는 함수
     private void Flip()
