@@ -3,20 +3,45 @@ using UnityEngine.InputSystem;
 
 public class GhostViewController : MonoBehaviour
 {
-    // ÀÎ½ºÆåÅÍ¿¡¼­ ²°´Ù ÄÓ À¯·É ÀÌ¹ÌÁö ¿ÀºêÁ§Æ®¸¦ ¿¬°áÇØÁİ´Ï´Ù.
-    public GameObject ghostImageObject;
+    public static GhostViewController instance;
+    private GameObject currentGhostImageObject;
+
+    private void Awake()
+    {
+        // ì˜¬ë°”ë¥¸ ì‹±ê¸€í†¤ íŒ¨í„´ìœ¼ë¡œ ìˆ˜ì •
+        if (instance != null && instance != this)
+        {
+            // ì´ ìŠ¤í¬ë¦½íŠ¸ê°€ ë¶™ì–´ìˆëŠ” ì˜¤ë¸Œì íŠ¸(GameManager)ë¥¼ íŒŒê´´
+            Destroy(this.gameObject);
+            return;
+        }
+        instance = this;
+        // ì´ ì˜¤ë¸Œì íŠ¸ê°€ íŒŒê´´ë˜ì§€ ì•Šë„ë¡ ì„¤ì •
+        DontDestroyOnLoad(this.gameObject);
+    }
+
+    // ìœ ë ¹ ì´ë¯¸ì§€ ì˜¤ë¸Œì íŠ¸ê°€ ìŠ¤ìŠ¤ë¡œë¥¼ ë“±ë¡í•  ë•Œ í˜¸ì¶œí•  í•¨ìˆ˜
+    public void RegisterGhostImage(GameObject ghostImage)
+    {
+        currentGhostImageObject = ghostImage;
+        // ë“±ë¡ëœ ì´ë¯¸ì§€ê°€ ìˆë‹¤ë©´, ì¼ë‹¨ ë¹„í™œì„±í™”
+        if (currentGhostImageObject != null)
+        {
+            currentGhostImageObject.SetActive(false);
+        }
+    }
 
     void Update()
     {
-        // 'M' Å°°¡ ´­¸®´Â ¼ø°£À» °¨ÁöÇÕ´Ï´Ù.
-        if (Keyboard.current.mKey.wasPressedThisFrame)
+        // ë“±ë¡ëœ ìœ ë ¹ ì´ë¯¸ì§€ê°€ ì—†ìœ¼ë©´ ì•„ë¬´ê²ƒë„ í•˜ì§€ ì•ŠìŒ
+        if (currentGhostImageObject == null) return;
+
+        bool isMKeyPressed = Keyboard.current.mKey.isPressed;
+
+        // ìœ ë ¹ ì´ë¯¸ì§€ì˜ í™œì„±í™” ìƒíƒœë¥¼ Mí‚¤ê°€ ëˆŒë¦° ìƒíƒœì™€ ë˜‘ê°™ì´ ë§Œë“¦
+        if (currentGhostImageObject.activeSelf != isMKeyPressed)
         {
-            if (ghostImageObject != null)
-            {
-                // À¯·É ÀÌ¹ÌÁöÀÇ ÇöÀç È°¼ºÈ­ »óÅÂ¸¦ ¹İÀü½ÃÅµ´Ï´Ù.
-                // (²¨Á®ÀÖÀ¸¸é ÄÑ°í, ÄÑÁ®ÀÖÀ¸¸é ²ü´Ï´Ù)
-                ghostImageObject.SetActive(!ghostImageObject.activeSelf);
-            }
+            currentGhostImageObject.SetActive(isMKeyPressed);
         }
     }
 }
