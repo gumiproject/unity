@@ -102,7 +102,7 @@ public class PlayerController : MonoBehaviour, IDamageable
     private int deathCount = 0; // [추가] 사망 횟수 카운트
 
     private int dashPowerUpState = 0;
-private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
+    private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
     #endregion
 
 
@@ -156,6 +156,7 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
 
     void Update()
     {
+
         isGrounded = Physics2D.OverlapBox(groundCheck.position, groundCheckSize, 0f, groundLayer);
 
         HandleClimbingAndSwimmingState();
@@ -165,6 +166,8 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
         HandleCrouchState();
         HandleFacingDirection();
         ApplyVisuals();
+
+
     }
 
     void FixedUpdate()
@@ -591,7 +594,7 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
                 // 쿨타임을 원래대로 복구
                 dashingCooldown = oriDashingCooldown;
                 Debug.Log("빠른 연계 성공! 대시 쿨타임이 원래대로 돌아옵니다.");
-                 UIManager.instance.SetDoubleDashIconActive(false);
+                UIManager.instance.SetDoubleDashIconActive(false);
             }
             // [조건 분기 2] 시간 간격이 원래 쿨타임보다 길었다면 (느리게 사용)
             else
@@ -602,12 +605,12 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
 
             // 모든 시퀀스가 끝났으므로 일반 상태로 복귀
             dashPowerUpState = 0;
-         UIManager.instance.SetDoubleDashIconActive(false);
-    }
+            UIManager.instance.SetDoubleDashIconActive(false);
+        }
 
         yield return new WaitForSeconds(dashingCooldown);
         canDash = true;
- 
+
     }
 
 
@@ -708,7 +711,7 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
         {
             UIManager.instance.UpdateHealthUI(currentHealth);
             UIManager.instance.SetDoubleJumpIconActive(canDoubleJump);
-             UIManager.instance.SetDoubleDashIconActive(false);
+            UIManager.instance.SetDoubleDashIconActive(false);
         }
     }
 
@@ -721,10 +724,10 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
     }
 
     public bool HasDashPowerUp()
-{
-    // 대시 강화 시퀀스가 진행 중일 때 true를 반환
-    return dashPowerUpState > 0;
-}
+    {
+        // 대시 강화 시퀀스가 진행 중일 때 true를 반환
+        return dashPowerUpState > 0;
+    }
 
     void OnDestroy()
     {
@@ -733,13 +736,22 @@ private float firstDashTime = 0f; // 첫 번째 대시를 사용한 시간
     }
 
 
-public void ActivateDoubleDash()
-{
-     UIManager.instance.SetDoubleDashIconActive(true);
-    // 1단계: 아이템을 먹고 '첫 번째 대시'를 기다리는 상태로 변경
+    public void ActivateDoubleDash()
+    {
+        UIManager.instance.SetDoubleDashIconActive(true);
+        // 1단계: 아이템을 먹고 '첫 번째 대시'를 기다리는 상태로 변경
         dashPowerUpState = 1;
-    // 첫 번째 대시는 즉시 사용할 수 있도록 쿨타임을 0으로 설정
-    dashingCooldown = 0f;
-    Debug.Log("대시 강화 시퀀스 시작! 첫 번째 대시는 쿨타임이 없습니다.");
+        // 첫 번째 대시는 즉시 사용할 수 있도록 쿨타임을 0으로 설정
+        dashingCooldown = 0f;
+        Debug.Log("대시 강화 시퀀스 시작! 첫 번째 대시는 쿨타임이 없습니다.");
+    }
+
+public void OnSuicide(InputValue value)
+{
+    // 버튼이 눌리는 순간에만 Die() 함수를 호출합니다.
+    if (value.isPressed)
+    {
+        Die();
+    }
 }
 }
