@@ -48,6 +48,16 @@ public class UIManager : MonoBehaviour
 
     private void FindUIElements()
     {
+        GameObject uiCanvas = GameObject.FindGameObjectWithTag("UICanvas");
+        if (uiCanvas == null)
+        {
+            Debug.LogError("씬에 'UICanvas' 태그를 가진 Canvas 오브젝트가 없습니다!");
+           return;
+        }
+
+        // Canvas의 모든 자식 컴포넌트들(비활성화된 것 포함)을 가져옵니다.
+        Transform[] allChildren = uiCanvas.GetComponentsInChildren<Transform>(true);
+
         GameObject healthBarObj = GameObject.Find("HealthBar");
         if (healthBarObj != null)
         {
@@ -58,9 +68,25 @@ public class UIManager : MonoBehaviour
             healthHearts = null;
         }
         
-        doubleJumpIcon = GameObject.Find("DoubleJumpIcon");
-        doubleDashIcon = GameObject.Find("DoubleDashIcon"); // [추가] 이름으로 대시 아이콘 찾기
+        doubleJumpIcon = null;
+        doubleDashIcon = null;
+        foreach (Transform child in allChildren)
+        {
+            if (child.name == "DoubleJumpIcon")
+            {
+                doubleJumpIcon = child.gameObject;
+            }
+            else if (child.name == "DoubleDashIcon")
+            {
+                doubleDashIcon = child.gameObject;
+            }
+        }
+
+        // 만약 못 찾았다면 경고를 출력해줍니다.
+        if (doubleJumpIcon == null) Debug.LogWarning("UICanvas 자식 중에 DoubleJumpIcon을 찾지 못했습니다.");
+        if (doubleDashIcon == null) Debug.LogWarning("UICanvas 자식 중에 DoubleDashIcon을 찾지 못했습니다.");
     }
+    
 
     public void UpdateHealthUI(int currentHealth)
     {

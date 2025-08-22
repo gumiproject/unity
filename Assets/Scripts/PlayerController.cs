@@ -138,7 +138,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         {
             transform.position = GameManager.instance.respawnPoint;
         }
-        StartCoroutine(InitializeUIWithDelay());
+        //StartCoroutine(InitializeUIWithDelay());
     }
 
     private IEnumerator InitializeUIWithDelay()

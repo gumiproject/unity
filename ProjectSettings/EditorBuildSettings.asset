@@ -36,6 +36,9 @@ EditorBuildSettings:
     path: Assets/Scenes/1-2_post.unity
     guid: 9caf4a8f682615042968f91fc17977f7
   - enabled: 1
+    path: Assets/Scenes/1-3_post.unity
+    guid: a1f4e432b978da0448d68cd174e46fcb
+  - enabled: 1
     path: Assets/Scenes/1-3_future.unity
     guid: 6307241ac32004740b865828fdc16873
   - enabled: 1
@@ -95,9 +98,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/1-12_future.unity
     guid: 2c04ac0507db9b9429fb142c334aec08
-  - enabled: 1
-    path: Assets/Scenes/1-3_post.unity
-    guid: a1f4e432b978da0448d68cd174e46fcb
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
