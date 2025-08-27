@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
+using TMPro;
 
 public class PlayerController : MonoBehaviour, IDamageable
 {
@@ -13,6 +14,10 @@ public class PlayerController : MonoBehaviour, IDamageable
     public AudioClip jumpSound;
     public AudioClip fireSound;
     public AudioClip damageSound;
+
+    [Header("말풍선 설정")]
+    public GameObject speechBubble; // 2단계에서 만든 SpeechBubble 오브젝트
+    public TextMeshProUGUI dialogueText;  // SpeechBubble의 자식인 TextMeshPro 오브젝트
 
     [Header("상태")]
     public int maxHealth = 3;
@@ -380,6 +385,7 @@ public class PlayerController : MonoBehaviour, IDamageable
         animator.SetBool("isJumping", !isGrounded);
         animator.SetBool("isClimbing", isClimbing);
         animator.SetBool("isSwimming", isSwimming);
+    
     }
 
     private void HandleNormalMovement()
@@ -746,12 +752,30 @@ public class PlayerController : MonoBehaviour, IDamageable
         Debug.Log("대시 강화 시퀀스 시작! 첫 번째 대시는 쿨타임이 없습니다.");
     }
 
-public void OnSuicide(InputValue value)
-{
-    // 버튼이 눌리는 순간에만 Die() 함수를 호출합니다.
-    if (value.isPressed)
+    public void OnSuicide(InputValue value)
     {
-        Die();
+        // 버튼이 눌리는 순간에만 Die() 함수를 호출합니다.
+        if (value.isPressed)
+        {
+            Die();
+        }
     }
-}
+
+    public void ShowSpeechBubble(string message)
+    {
+        if (speechBubble != null && dialogueText != null)
+        {
+            dialogueText.text = message;
+            speechBubble.SetActive(true);
+        }
+    }
+
+    public void HideSpeechBubble()
+    {
+        if (speechBubble != null)
+        {
+            speechBubble.SetActive(false);
+        }
+    }
+    
 }
